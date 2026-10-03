@@ -50,7 +50,15 @@
         return imgCache[src];
     }
     function art(key) { return loadImg('assets/img/' + key + '.webp'); }
-    function figureOf(key) { return loadImg('assets/img/' + key + '-figure.webp'); }
+    function figureOf(key) {
+        var el = $('img.stage__figure[src*="' + key + '-figure"]');
+        if (!el) return loadImg('assets/img/' + key + '-figure.webp');
+        return new Promise(function (res) {
+            if (el.complete && el.naturalWidth) return res(el);
+            el.addEventListener('load', function () { res(el); }, { once: true });
+            el.addEventListener('error', function () { res(null); }, { once: true });
+        });
+    }
 
     /* Where a cut-out was lifted, the board keeps a halftone imprint of it:
        dots sized by the figure's own tones, printed light on ink. Built once
@@ -522,9 +530,13 @@
         var thumbs = [];
 
         function init() {
-            ['art1', 'art2', 'art3', 'art4'].forEach(function (k) {
-                art(k).then(function (im) { if (im) { board.setSource(k, im, {}); thumbs.forEach(function (b) { if (b.key === k) { b.setSource(k, im, {}); b.draw(); } }); } });
-            });
+            new IntersectionObserver(function (es, ob) {
+                if (!es[0].isIntersecting) return;
+                ob.disconnect();
+                ['art1', 'art2', 'art3', 'art4'].forEach(function (k) {
+                    art(k).then(function (im) { if (im) { board.setSource(k, im, {}); thumbs.forEach(function (b) { if (b.key === k) { b.setSource(k, im, {}); b.draw(); } }); } });
+                });
+            }, { rootMargin: '900px 0px' }).observe(list);
             if (fine) board.resize(canvas.clientWidth || 280, canvas.clientHeight || 350);
             items.forEach(function (it) {
                 var row = $('[data-flap-row]', it);
@@ -1208,9 +1220,7 @@
 
     var jobs = [
         fontsReady,
-        Promise.all([art('art1'), figureOf('art1')]),
-        Promise.all([art('art3'), figureOf('art3')]),
-        Promise.all([art('art2'), figureOf('art2')])
+        Promise.all([art('art1'), figureOf('art1')])
     ];
     var done = 0, shown = 0, t0 = performance.now();
     jobs.forEach(function (j) { j.then(function () { done++; }); });
@@ -1226,16 +1236,17 @@
     Promise.all(jobs).then(function (res) {
         vw = win.innerWidth; vh = win.innerHeight;
         lb.cache.clear(); lb.draw();
-        loaded.art1 = res[1]; loaded.art3 = res[2]; loaded.art2 = res[3];
+        loaded.art1 = res[1];
         hero.init(res[1][0], res[1][1]);
-        wall.init(res[2][0], res[2][1]);
-        contact.init(res[3][0], res[3][1]);
         work.init();
         layers.init();
         mark.init(res[1][0]);
         services.forEach(function (sv) { sv.init(); });
         timetable.init();
         requestAnimationFrame(loop);
+        // below the fold: the wall and contact boards stream in behind the loader
+        Promise.all([art('art3'), figureOf('art3')]).then(function (r) { loaded.art3 = r; wall.init(r[0], r[1]); });
+        Promise.all([art('art2'), figureOf('art2')]).then(function (r) { loaded.art2 = r; contact.init(r[0], r[1]); });
         var wait = Math.max(0, MIN + 250 - (performance.now() - t0));
         setTimeout(function () {
             clearInterval(countTimer);

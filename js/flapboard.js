@@ -251,7 +251,14 @@
   /* ---------- scheduling ---------- */
 
   /* Queue a flip to `f` after `delay` ms (ignored if it would be a no-op). */
+  FlapBoard.prototype._redraw = function () {
+    var self = this;
+    if (this._rq) return;
+    this._rq = requestAnimationFrame(function () { self._rq = 0; self.draw(); });
+  };
+
   FlapBoard.prototype.flip = function (t, f, delay, speed) {
+    if (FlapBoard.reduced) { t.queue.length = 0; t.anim = null; if (t.cur !== f) { t.cur = f; this._redraw(); } return; }
     var last = t.queue.length ? t.queue[t.queue.length - 1].face : (t.anim ? t.anim.to : t.cur);
     if (last === f) return;
     t.queue.push({ face: f, at: now() + (delay || 0), speed: speed || 1 });
@@ -265,6 +272,11 @@
     t.home = f;
     t.returnAt = 0;
     t.queue.length = 0;
+    if (FlapBoard.reduced) {             // no motion: faces change in place
+      t.anim = null;
+      if (t.cur !== f) { t.cur = f; this._redraw(); }
+      return;
+    }
     var showing = t.anim ? t.anim.to : t.cur;
     if (showing === f) return;
     var at = now() + (delay || 0);
@@ -287,7 +299,7 @@
 
   /* Temporarily reveal the tile's alt face, returning home after `hold` ms. */
   FlapBoard.prototype.poke = function (t, delay, hold) {
-    if (!t || !this.o.alt || t.locked) return;
+    if (!t || !this.o.alt || t.locked || FlapBoard.reduced) return;
     var alt = this.o.alt(t);
     if (!alt || alt === t.home) return;
     var showing = t.queue.length ? t.queue[t.queue.length - 1].face : (t.anim ? t.anim.to : t.cur);
@@ -594,6 +606,7 @@
   };
 
   FlapBoard.GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+  FlapBoard.reduced = !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
   FlapBoard.DRUM = (' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-/:@&\u2019').split('');
 
   /* Shared print grain for cards: one small noise tile, made once. */
