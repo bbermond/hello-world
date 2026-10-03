@@ -510,7 +510,7 @@
         }
         ticks.push(tick);
 
-        return { board: board, init: init, measure: measure, resize: function () { board.o.cols = cols(); }, debug: function () { return { range: range, ready: ready, stageIdx: stageIdx, region: region, vh: vh, scrollY: scrollY }; } };
+        return { board: board, init: init, measure: measure, resize: function () { board.o.cols = cols(); } };
     })();
 
     /* ======================================================================
@@ -1304,6 +1304,5 @@
         loader.classList.add('is-done');
     }
 
-    if (/[?&]debug/.test(location.search)) win.__bm = { hero: hero, wall: wall, work: work, layers: layers, contact: contact, lenis: lenis };
     win.addEventListener('load', function () { wall.measure(); layers.measure(); });
 })();

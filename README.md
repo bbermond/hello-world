@@ -42,7 +42,12 @@ assets/vendor/        Lenis smooth scroll (MIT)
 ## Make it yours
 
 - **Email** — set it once on `<body data-email="you@domain.com">` in
-  `index.html` (it currently uses the placeholder `hello@example.com`).
+  `index.html` (it currently uses the placeholder `hello@example.com`). It
+  feeds every mailto link and the flap row in the contact section, which
+  copies the address on click.
+- **Share image** — `og:image` points at `assets/img/og.jpg` with a relative
+  path; once the site has a domain, make it an absolute URL so social
+  networks pick it up.
 - **Social links** — the Dribbble, Behance, LinkedIn and Instagram links point
   at each platform's home page; replace them with your profiles.
 - **Projects** — the four entries under *Selected Work* are placeholders; edit
