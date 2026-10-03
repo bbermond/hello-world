@@ -171,6 +171,7 @@ ol, ul { padding: 0; list-style: none; }
     transition: transform .7s var(--ease-out), background-color .4s, box-shadow .4s;
 }
 .nav.is-hidden { transform: translateY(-105%); }
+.nav.is-hidden:focus-within { transform: none; }
 .nav.is-solid { background: color-mix(in srgb, var(--paper) 94%, transparent); box-shadow: 0 1px 0 var(--line); }
 .nav__brand { justify-self: start; font-weight: 500; letter-spacing: -.01em; }
 .nav__brand sup { font-size: 9px; margin-left: 2px; }
