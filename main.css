@@ -714,7 +714,9 @@ html.js [data-reveal].is-in { opacity: 1; transform: none; }
 
 /* ---------- without JavaScript: static collage, nothing pinned ---------- */
 html:not(.js) .stage__figure, html:not(.js) .stage__board, html:not(.js) .preview,
-html:not(.js) .contact__board, html:not(.js) .layers__board, html:not(.js) .layer, html:not(.js) .sound-toggle { display: none; }
+html:not(.js) .contact__board, html:not(.js) .layers__board, html:not(.js) .layer, html:not(.js) .sound-toggle,
+html:not(.js) .service__board, html:not(.js) .weeks, html:not(.js) .timetable, html:not(.js) .foot__mark,
+html:not(.js) .email-flap, html:not(.js) .menu-toggle, html:not(.js) .flap-edge, html:not(.js) .layers__labels { display: none; }
 html:not(.js) .hero__stage { background: url("assets/img/art1.webp") 50% 42% / cover; }
 html:not(.js) .wall__stage { background: url("assets/img/art3.webp") 12% 16% / cover; min-height: 70vh; }
 html:not(.js) .contact__stage { background: url("assets/img/art2.webp") 50% 45% / cover; }
