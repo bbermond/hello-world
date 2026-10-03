@@ -706,15 +706,45 @@
             $$('.layer', rig).forEach(function (l) { l.style.setProperty('--z', l.getAttribute('data-z')); });
         }
 
+        /* flap edges: a row of tiles above the section flips to teal as you
+           arrive (pulling the colour up); a row below retracts as you leave */
+        var edgeBoards = [];
+        function edges() {
+            $$('.flap-edge', section).forEach(function (wrap) {
+                var top = wrap.classList.contains('flap-edge--top');
+                var cv = $('canvas', wrap);
+                var eb = new FlapBoard(cv, {
+                    cols: clamp(Math.round(cv.clientWidth / 64), 8, 28), rows: 1, gap: 0, radius: 0, split: 1, duration: 520, gloss: true,
+                    face: function () { return top ? F.clear() : F.fill(getComputedStyle(section).backgroundColor); }
+                });
+                eb.resize();
+                boards.push(eb);
+                edgeBoards.push({ board: eb, top: top, el: wrap, on: !top });
+            });
+        }
+        function edgeTick() {
+            for (var i = 0; i < edgeBoards.length; i++) {
+                var e = edgeBoards[i];
+                var y = (e.top ? range.top - e.el.offsetHeight : range.top + range.height) - scrollY;
+                var want = e.top ? y < vh * 0.8 : y > vh * 0.55;
+                if (want === e.on) continue;
+                e.on = want;
+                var teal = getComputedStyle(section).backgroundColor;
+                e.board.wave(function () { return want ? F.fill(teal) : F.clear(); }, { origin: [0, e.top ? 0 : e.board.cols], speed: 34, jitter: 30 });
+            }
+        }
+
         function init() {
             place();
             board.resize();
             boards.push(board);
             measure();
+            edges();
         }
         function measure() { range = sceneRange(section); geo = null; }
 
         function tick() {
+            if (edgeBoards.length) edgeTick();
             var p = clamp((scrollY - range.top) / Math.max(1, range.height - range.view), 0, 1);
             if (scrollY + vh < range.top - 50 || scrollY > range.top + range.height + 50) return;
             var e = reduce ? 0.5 : sstep(0.08, 0.5, p) * (1 - sstep(0.8, 0.97, p) * 0.85);

@@ -422,6 +422,10 @@ body.menu-open .nav { color: #EFE9DC; background: transparent; box-shadow: none;
     background: url("assets/img/grain.webp") 0 0 / 180px 180px, var(--teal);
     color: color-mix(in srgb, #E4F1EE calc(var(--e) * 100%), var(--teal-ink));
 }
+.flap-edge { position: absolute; left: 0; right: 0; height: clamp(44px, 4.6vw, 72px); pointer-events: none; z-index: 1; }
+.flap-edge canvas { width: 100%; height: 100%; }
+.flap-edge--top { bottom: 100%; }
+.flap-edge--bottom { top: 100%; }
 .layers__dim { position: absolute; inset: 0; background: var(--deep); opacity: calc(var(--e) * .92); pointer-events: none; }
 :root[data-theme="dark"] .layers { --e-base: 1; background: url("assets/img/grain.webp") 0 0 / 180px 180px, #0D2A2C; color: #E4F1EE; }
 :root[data-theme="dark"] .layers__dim { display: none; }
