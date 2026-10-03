@@ -556,6 +556,7 @@ body.menu-open .nav { color: #EFE9DC; background: transparent; box-shadow: none;
     opacity: 0; transition: opacity .5s, color .4s;
 }
 .indicator.is-on { opacity: 1; }
+@media (max-width: 1100px) { .indicator { display: none; } }
 .indicator.is-teal { color: var(--teal-ink); }
 .indicator i { width: 24px; height: 1px; background: currentColor; }
 .cursor { position: fixed; left: 0; top: 0; z-index: 80; pointer-events: none; display: none; }
@@ -616,15 +617,11 @@ html.js [data-reveal].is-in { opacity: 1; transform: none; }
     .layers__labels { display: none; }
 }
 
-@media (max-width: 767px) {
-    :root { --nav-h: 56px; }
-    body { font-size: 16px; }
-    .nav { grid-template-columns: 1fr auto; }
-    .nav__links { display: none; }
-    .nav__time { display: none; }
+/* stacked hero: phones and portrait tablets */
+@media (max-width: 767px), (max-width: 1100px) and (orientation: portrait) {
+    .hero { --title: clamp(56px, 19.5vw, 120px); }
     .hero { flex-direction: column; min-height: auto; padding-bottom: 6vh; }
     .hero__copy { display: contents; }
-    .hero { --title: clamp(56px, 19.5vw, 120px); }
     .hero__kicker { order: 1; }
     .hero__head { order: 2; }
     .hero__title { margin-top: 4vh; }
@@ -636,6 +633,19 @@ html.js [data-reveal].is-in { opacity: 1; transform: none; }
     .hero__stage .stage__tag { top: -20px; }
     .hero__bottom { order: 5; grid-template-columns: 1fr; gap: 30px; margin-top: 0; max-width: none; }
     .accents { display: none; }
+}
+@media (max-width: 1100px) and (min-width: 768px) and (orientation: portrait) {
+    .hero { --title: clamp(90px, 15vw, 150px); }
+    .hero__stage { width: min(100%, 620px); align-self: flex-end; }
+    .hero__bottom { grid-template-columns: minmax(0, 1fr) minmax(0, 12rem); }
+}
+
+@media (max-width: 767px) {
+    :root { --nav-h: 56px; }
+    body { font-size: 16px; }
+    .nav { grid-template-columns: 1fr auto; }
+    .nav__links { display: none; }
+    .nav__time { display: none; }
     .wall { height: 260vh; }
     .wall__head { grid-template-columns: 1fr; }
     .services__list { grid-template-columns: 1fr; gap: 42px; }

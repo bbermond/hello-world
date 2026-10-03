@@ -352,6 +352,8 @@
         var box = ART.art1.figure;
         var msg = {}, state = 'img', ready = false;
         var mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+        // same breakpoint as the stacked hero in main.css
+        var stacked = win.matchMedia('(max-width: 767px), (max-width: 1100px) and (orientation: portrait)');
 
         var board = new FlapBoard(canvas, {
             cols: 8, aspect: 1.28, gap: 3, radius: 2, split: 1, duration: 620,
@@ -401,7 +403,9 @@
             // clears the rows where the message lands
             var rise = reduce ? 0 : p * board.cssH * 0.62;
             pose(fig, stage, mx * 9 - lift * 18, my * 6 - lift * 30 - rise, 1 + lift * 0.07, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 30, lift);
-            canvas.style.transform = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + p * 60).toFixed(2) + 'px,0)';
+            // side by side, the board lags the scroll a little; stacked, content sits under it
+            var drift = stacked.matches ? 0 : p * 60;
+            canvas.style.transform = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + drift).toFixed(2) + 'px,0)';
             for (var i = 0; i < accents.length; i++) {
                 var d = accents[i]._d || (accents[i]._d = parseFloat(accents[i].getAttribute('data-depth')) || 0.5);
                 accents[i].style.transform = 'translate3d(' + (mx * d * 14).toFixed(2) + 'px,' + (my * d * 9 - p * d * 120).toFixed(2) + 'px,0)';
