@@ -201,6 +201,8 @@
 
     /* Idle reveal of one whole hidden word, left to right. */
     function wordPick(board, words) {
+        // single letters ("A") read as stray tiles; only reveal real words
+        words = words.filter(function (w) { return w.length >= 3; });
         if (!words.length) return null;
         var w = words[(Math.random() * words.length) | 0];
         return w.map(function (q) { return board.at(q[0], q[1]); }).filter(Boolean);
@@ -622,7 +624,7 @@
                 it.addEventListener('mouseenter', function () {
                     if (!fine) return;
                     show(it);
-                    if (ft) ft.roll({ steps: 2, stagger: 18 });
+                    if (ft) ft.knock({ stagger: 26, duration: 420 });
                 });
                 // mobile: a small board per row that flips to its artwork in view
                 var th = $('.work__thumb', it);
@@ -968,7 +970,7 @@
                     if (!es[0].isIntersecting) return;
                     ob.disconnect();
                     board.wave(function (t) { return t.c < 2 ? card(num[t.c]) : null; }, { origin: [0, 0], speed: 90, cycle: 3 });
-                }, { threshold: 0.9 }).observe(el);
+                }, { threshold: 0.6 }).observe(board.canvas);
             }
         };
     });
@@ -1066,9 +1068,8 @@
        Typography: headline, hover flips, numbers, clock, indicator
        ====================================================================== */
     var titles = $$('[data-flap-title]').map(function (el) { return new FlapText(el, { duration: 560, stagger: 55, rest: 'text' }); });
-    $('.hero__title').addEventListener('mouseenter', function () {
-        titles.forEach(function (t, i) { t.roll({ steps: 3, stagger: 34, delay: i * 120 }); });
-    });
+    // brushing the headline turns its letters over like cards on a board
+    titles.forEach(function (t) { t.brush({ count: 2, stagger: 80, duration: 520 }); });
 
     $$('[data-flap-hover]').forEach(function (el) {
         var ft = new FlapText(el, { duration: 300, stagger: 18, rest: 'text' });

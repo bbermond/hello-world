@@ -43,8 +43,8 @@
     if (ch === ' ') c.classList.add('fx--space');
   }
 
-  Cell.prototype.to = function (ch, dur, delay) {
-    this.queue.push({ ch: ch, dur: dur, delay: delay || 0 });
+  Cell.prototype.to = function (ch, dur, delay, force) {
+    this.queue.push({ ch: ch, dur: dur, delay: delay || 0, force: !!force });
     if (!this.busy) this._next();
   };
 
@@ -53,7 +53,7 @@
     var q = this.queue.shift();
     if (!q) { this.busy = false; this.node.classList.remove('is-flipping'); return; }
     this.busy = true;
-    if (q.ch === this.ch) { this._next(); return; }
+    if (q.ch === this.ch && !q.force) { this._next(); return; }
     var go = function () {
       var from = self.ch, to = q.ch;
       self.a.textContent = to;
@@ -149,6 +149,41 @@
       }
       cell.to(ch, dur * 0.6, 0);
     }
+  };
+
+  /* Turn cards over in place: each lands on the same letter, so the word
+     never garbles. `from` (a cell index) and `dir` make a domino run. */
+  FlapText.prototype.knock = function (opt) {
+    opt = opt || {};
+    if (reduce) return;
+    var dur = opt.duration || this.o.duration;
+    var stagger = opt.stagger == null ? this.o.stagger : opt.stagger;
+    var from = opt.from || 0, n = opt.count == null ? this.cells.length : opt.count, dir = opt.dir || 1;
+    for (var k = 0; k < n; k++) {
+      var i = from + k * dir;
+      if (i < 0 || i >= this.cells.length) break;
+      var cell = this.cells[i];
+      if (cell.busy || this.text[i] === ' ') continue;
+      cell.to(cell.ch, dur, (opt.delay || 0) + k * stagger, true);
+    }
+  };
+
+  /* Pointer brushing over the text flips the letter under it and the next
+     one in the direction of travel. */
+  FlapText.prototype.brush = function (opt) {
+    opt = opt || {};
+    var self = this, last = -1;
+    this.node.addEventListener('pointermove', function (e) {
+      if (e.pointerType === 'touch') return;
+      var cellEl = e.target.closest && e.target.closest('.fx');
+      if (!cellEl) return;
+      var i = self.cells.findIndex(function (c) { return c.node === cellEl; });
+      if (i < 0 || i === last) return;
+      var dir = last < 0 ? 1 : (i > last ? 1 : -1);
+      last = i;
+      self.knock({ from: i, count: opt.count || 2, dir: dir, stagger: opt.stagger || 70, duration: opt.duration });
+    });
+    this.node.addEventListener('pointerleave', function () { last = -1; });
   };
 
   /* Start blank and drop every letter into place. */
