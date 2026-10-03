@@ -7,9 +7,9 @@ collage art and airport split-flap ("Solari") boards.
   gravity, a small bounce and light/shadow — when the cursor moves over them
   (knocking the next tiles over like dominoes), randomly on their own, and in
   waves as you scroll, revealing words underneath.
-- **Figures separate from the background.** Each portrait is a cut-out that
-  floats above its board; when it lifts it leaves a dark silhouette behind,
-  like a figure cut out of a magazine page.
+- **Figures separate from the background.** Each portrait is a torn-paper
+  cut-out that floats above its board; when it lifts, the board keeps a
+  halftone imprint of the figure, like a page the picture was torn from.
 - **Scroll-driven scenes.** The hero board flips into its message, the
   manifesto wall turns the artwork into words and back, and a collage is
   pulled apart into its layers in 3D.
@@ -54,18 +54,21 @@ assets/vendor/        Lenis smooth scroll (MIT)
   the names, tags and years in `index.html`. Each row's `data-art` picks the
   artwork shown in its flap preview.
 - **Messages on the boards** — `MSG` (manifesto wall), `MESSAGES` (contact
-  departures board) and the hero text `BERMOND DIGITAL DESIGNER` live in
-  `index.js`. Soft hyphens (`­`) mark where long words may break.
+  departures board), `STEPS` (process timetable), the hero text
+  `HELLO I’M BERMOND` and the footer `NAME` live in `index.js`. A soft hyphen
+  (`\u00AD` in a string) marks where a long word may break.
 - **New artwork** — add `artN.webp` plus a cut-out `artN-figure.webp` (same
   scale, cropped to the figure) and record the crop box in the `ART` table at
-  the top of `index.js`; the board, the silhouette and the registration are
-  derived from it.
+  the top of `index.js`; the board, the halftone imprint and the registration
+  are derived from it.
 
 ## How the cut-outs were made
 
-The source images were upscaled 2× with ESRGAN, segmented with IS-Net
-(`@imgly/background-removal-node`), then cleaned up by hand with art-directed
-polygons, morphology and signed-distance anti-aliasing. The teal artwork was
+The source images were upscaled with ESRGAN (2×, and 4× for the full-width
+wall), segmented with IS-Net (`@imgly/background-removal-node`), then cleaned
+up by hand with art-directed polygons, morphology and signed-distance
+anti-aliasing. Each cut-out is finished as torn paper: noisy tear lines with
+paper fibres along them, and a thin irregular paper rim. The teal artwork was
 split into four layers (field, sun, portrait, leaves); the parts of the sun
 hidden behind the portrait were rebuilt as flat orange with the original
 texture feathered in.
