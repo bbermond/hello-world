@@ -17,8 +17,8 @@
     <link rel="preload" href="assets/fonts/funnel-display.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/fonts/funnel-sans.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="assets/img/art1.webp" as="image">
-    <link rel="preload" href="assets/img/art1-figure.webp" as="image">
+    <link rel="preload" href="assets/img/bermond.avif" as="image" type="image/avif">
+    <link rel="preload" href="assets/img/bermond-figure.avif" as="image" type="image/avif">
     <link rel="stylesheet" href="main.css">
     <script>
         /* apply a saved theme before first paint */
@@ -109,19 +109,13 @@
             <div class="hero__stage stage" data-stage="hero">
                 <canvas class="stage__board" aria-hidden="true"></canvas>
                 <p class="sr-only">Hello, I’m Bermond.</p>
-                <img class="stage__figure" src="assets/img/art1-figure.webp" alt="" width="979" height="1101" decoding="async" fetchpriority="high">
+                <!-- the portrait's own layers, each on its own plane above the board -->
+                <picture><source srcset="assets/img/bermond-figure.avif" type="image/avif"><img class="stage__figure" src="assets/img/bermond-figure.webp" alt="Portrait of Bermond: a collage in red, gold and olive" width="1491" height="1724" decoding="async" fetchpriority="high"></picture>
+                <picture><source srcset="assets/img/bermond-front.avif" type="image/avif"><img class="stage__front" src="assets/img/bermond-front.webp" alt="" width="1539" height="759" decoding="async"></picture>
+                <div class="stage__window" aria-hidden="true"><picture><source srcset="assets/img/bermond-lines.avif" type="image/avif"><img class="stage__lines" src="assets/img/bermond-lines.webp" alt="" width="1881" height="1881" decoding="async"></picture></div>
                 <span class="mark mark--tl" aria-hidden="true"></span>
                 <span class="mark mark--br" aria-hidden="true"></span>
-                <p class="stage__tag mono" aria-hidden="true"><span>Fig. 01</span><span>Kente Signal</span></p>
-            </div>
-
-            <!-- collage accents, each on its own depth -->
-            <div class="accents" aria-hidden="true">
-                <span class="acc acc--hatch" data-depth="0.6"></span>
-                <span class="acc acc--ladder" data-depth="0.35"></span>
-                <span class="acc acc--diamonds" data-depth="1.25"><i></i><i></i><i></i></span>
-                <span class="acc acc--hline" data-depth="0.2"></span>
-                <span class="acc acc--vline" data-depth="0.9"></span>
+                <p class="stage__tag mono" aria-hidden="true"><span>Fig. 01</span><span>Portrait · five layers</span></p>
             </div>
 
             <p class="hero__scroll mono" aria-hidden="true"><span>Scroll</span><i></i></p>

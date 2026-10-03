@@ -320,6 +320,19 @@ body.menu-open .nav { color: #EFE9DC; background: transparent; box-shadow: none;
     opacity: 0;
 }
 .stage.is-ready .stage__figure { opacity: 1; }
+/* layered artwork: planes in front of the portrait, laid on one after another */
+.stage__front, .stage__lines {
+    position: absolute;
+    max-width: none;
+    pointer-events: none;
+    will-change: transform;
+    opacity: 0;
+}
+.stage__front { z-index: 6; transition: opacity .6s .22s; }
+/* the lines are drawn on the board, so they stay inside its frame */
+.stage__window { position: absolute; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; will-change: transform; }
+.stage__lines { transition: opacity .7s .44s; }
+.stage.is-ready .stage__front, .stage.is-ready .stage__lines { opacity: 1; }
 
 .hero__stage {
     right: var(--pad);
@@ -344,33 +357,6 @@ body.menu-open .nav { color: #EFE9DC; background: transparent; box-shadow: none;
     display: none; align-items: center; gap: 10px; color: var(--ink-3);
 }
 
-/* collage accents */
-.accents { position: absolute; inset: 0; pointer-events: none; }
-.acc { position: absolute; display: block; will-change: transform; transition: opacity .6s var(--ease-out); }
-.hero.is-msg .acc--hline, .hero.is-msg .acc--vline, .hero.is-msg .acc--ladder, .hero.is-msg .acc--hatch { opacity: 0; }
-.acc--hatch {
-    z-index: 1;
-    right: calc(var(--pad) + var(--stage-w) - 3.2vw);
-    top: 41vh; width: 4.6vw; height: 5.6vw;
-    background: repeating-linear-gradient(135deg, var(--red) 0 2px, transparent 2px 9px);
-    opacity: .9;
-}
-.acc--ladder {
-    z-index: 2;
-    right: calc(var(--pad) + var(--stage-w) - 2vw);
-    top: 55vh; width: 13vw; height: 9vh;
-    background: repeating-linear-gradient(180deg, var(--gold) 0 2px, transparent 2px 9px);
-    opacity: .85;
-    mix-blend-mode: multiply;
-}
-[data-theme="dark"] .acc--ladder { mix-blend-mode: normal; }
-.acc--diamonds { z-index: 5; right: calc(var(--pad) - 1.2vw); top: 25vh; display: grid; gap: 1.6vh; justify-items: center; }
-.acc--diamonds i { display: block; width: 1.6vw; height: 3.6vw; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
-.acc--diamonds i:nth-child(1) { background: var(--gold); }
-.acc--diamonds i:nth-child(2) { background: #D8CFBF; width: 1.3vw; height: 3vw; }
-.acc--diamonds i:nth-child(3) { background: linear-gradient(90deg, #3a1410 50%, var(--oxblood) 50%); }
-.acc--hline { z-index: 2; left: 34vw; right: calc(var(--pad) + 2vw); top: 61vh; height: 1px; background: var(--gold); opacity: .9; }
-.acc--vline { z-index: 5; right: calc(var(--pad) + 7vw); top: 8vh; bottom: 10vh; width: 1px; background: var(--gold); opacity: .9; }
 /* ---------- manifesto wall ---------- */
 .wall { position: relative; height: 270vh; }
 .wall__sticky {
@@ -685,7 +671,6 @@ html.js [data-reveal].is-in { opacity: 1; transform: none; }
     }
     .hero__stage .stage__tag { top: -20px; }
     .hero__bottom { order: 5; grid-template-columns: 1fr; gap: 30px; margin-top: 0; max-width: none; }
-    .accents { display: none; }
 }
 @media (max-width: 1100px) and (min-width: 768px) and (orientation: portrait) {
     .hero { --title: clamp(90px, 15vw, 150px); }
@@ -729,6 +714,10 @@ html.js [data-reveal].is-in { opacity: 1; transform: none; }
 
 @media (prefers-reduced-motion: reduce) {
     html.js [data-reveal] { opacity: 1; transform: none; transition: none; }
+    /* nothing flies off: once the board shows its message, the collage fades away */
+    .hero.is-msg .stage__figure, .hero.is-msg .stage__front, .hero.is-msg .stage__window, .hero.is-msg .stage__shadow {
+        opacity: 0 !important; transition: opacity .4s;
+    }
     .dot { animation: none; }
     .nav { transition: none; }
 }
@@ -738,7 +727,8 @@ html:not(.js) .stage__figure, html:not(.js) .stage__board, html:not(.js) .previe
 html:not(.js) .contact__board, html:not(.js) .layers__board, html:not(.js) .layer, html:not(.js) .sound-toggle,
 html:not(.js) .service__board, html:not(.js) .weeks, html:not(.js) .timetable, html:not(.js) .foot__mark,
 html:not(.js) .email-flap, html:not(.js) .menu-toggle, html:not(.js) .flap-edge, html:not(.js) .layers__labels { display: none; }
-html:not(.js) .hero__stage { background: url("assets/img/art1.webp") 50% 42% / cover; }
+html:not(.js) .hero__stage { background: url("assets/img/bermond-flat.webp") 50% 50% / cover; }
+html:not(.js) .stage__front, html:not(.js) .stage__lines { display: none; }
 html:not(.js) .wall__stage { background: url("assets/img/art3.webp") 12% 16% / cover; min-height: 70vh; }
 html:not(.js) .contact__stage { background: url("assets/img/art2.webp") 50% 45% / cover; }
 html:not(.js) .layers__rig { background: url("assets/img/art4.webp") center / cover; }

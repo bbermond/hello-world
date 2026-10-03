@@ -7,9 +7,14 @@ collage art and airport split-flap ("Solari") boards.
   gravity, a small bounce and light/shadow — when the cursor moves over them
   (knocking the next tiles over like dominoes), randomly on their own, and in
   waves as you scroll, revealing words underneath.
-- **Figures separate from the background.** Each portrait is a torn-paper
-  cut-out that floats above its board; when it lifts, the board keeps a
-  halftone imprint of the figure, like a page the picture was torn from.
+- **Figures separate from the background.** The hero is Bermond's own
+  portrait, built from the artwork's layers: the board shows the background
+  and rear geometry, and the portrait, the foreground geometry and the fine
+  lines float above it on their own planes, each with its own parallax. On
+  scroll they lift off — nearest first — to uncover the message underneath.
+  The other portraits are torn-paper cut-outs; when one lifts, its board
+  keeps a halftone imprint of the figure, like a page the picture was torn
+  from.
 - **Scroll-driven scenes.** The hero board flips into its message, the
   manifesto wall turns the artwork into words and back, and a collage is
   pulled apart into its layers in 3D.
@@ -57,6 +62,12 @@ assets/vendor/        Lenis smooth scroll (MIT)
   departures board), `STEPS` (process timetable), the hero text
   `HELLO I’M BERMOND` and the footer `NAME` live in `index.js`. A soft hyphen
   (`\u00AD` in a string) marks where a long word may break.
+- **Portrait** — the hero uses `assets/img/bermond*.{avif,webp}`: `bermond`
+  (background + rear geometry, shown on the board), `bermond-figure` (the
+  portrait), `bermond-front` (foreground geometry), `bermond-lines` (lines
+  and marks) and `bermond-flat` (the flattened artwork, used without
+  JavaScript). Their crop boxes, in a 2508 px square, are in `ART.bermond`
+  at the top of `index.js`.
 - **New artwork** — add `artN.webp` plus a cut-out `artN-figure.webp` (same
   scale, cropped to the figure) and record the crop box in the `ART` table at
   the top of `index.js`; the board, the halftone imprint and the registration
@@ -64,7 +75,17 @@ assets/vendor/        Lenis smooth scroll (MIT)
 
 ## How the cut-outs were made
 
-The source images were upscaled with ESRGAN (2×, and 4× for the full-width
+The hero portrait comes from Bermond's layered file (five layers). The
+portrait, rear geometry and lines line up with the flattened artwork; the
+foreground geometry layer had been exported about 1.2× too large, so it was
+re-registered to the artwork with SIFT feature matching refined by ECC
+alignment. Paint that sits on the face stays with the portrait; the fine
+lines float as their own plane. The graphic layers were upscaled with
+ESRGAN; the face keeps plain resampling, because ESRGAN smoothed its
+painterly texture. Faint texture under 4% opacity was dropped from the
+lines, and the layers ship as AVIF with WebP fallbacks (about 460 KB).
+
+The other artworks were upscaled with ESRGAN (2×, and 4× for the full-width
 wall), segmented with IS-Net (`@imgly/background-removal-node`), then cleaned
 up by hand with art-directed polygons, morphology and signed-distance
 anti-aliasing. Each cut-out is finished as torn paper: noisy tear lines with

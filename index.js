@@ -22,10 +22,12 @@
     function sstep(a, b, v) { var t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
     function pad(n, l) { n = String(n); while (n.length < l) n = '0' + n; return n; }
 
-    /* Artwork geometry (2× upscaled sources). figure/sun/leaves are crop boxes
-       [x, y, w, h] of the cut-outs inside their parent artwork. */
+    /* Artwork geometry (2× upscaled sources). figure/front/lines/sun/leaves are
+       crop boxes [x, y, w, h] of the cut-outs inside their parent artwork. */
     var ART = {
-        art1: { w: 1472, h: 1472, figure: [300, 109, 979, 1101] },
+        // Bermond's portrait: the board shows the background + rear geometry,
+        // the portrait, foreground geometry and lines float above it
+        bermond: { w: 2508, h: 2508, figure: [474, 146, 1988, 2298], front: [354, 1448, 2052, 1012], lines: [0, 0, 2508, 2508] },
         art2: { w: 1472, h: 1472, figure: [375, 250, 631, 839] },
         art3: { w: 1472, h: 1472, figure: [177, 238, 735, 1116] },
         art4: { w: 1920, h: 2400, figure: [231, 703, 1436, 1681], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
@@ -213,14 +215,18 @@
 
     /* How much of each tile a cut-out hides at rest (0..1), from its alpha. */
     function coverageOf(board, fig) {
-        var key = board.cssW + 'x' + board.cssH + fig.style.cssText.slice(0, 80);
-        if (fig._cov && fig._cov.key === key) return fig._cov.map;
+        var els = [].concat(fig).filter(Boolean);
+        var key = board.cssW + 'x' + board.cssH + els.map(function (e) { return e.style.left + e.style.top + e.style.width; }).join('|');
+        var host = els[0];
+        if (host._cov && host._cov.key === key) return host._cov.map;
         var map = null;
         try {
             var k = 0.25, W = Math.max(1, Math.round(board.cssW * k)), H = Math.max(1, Math.round(board.cssH * k));
             var c = doc.createElement('canvas'); c.width = W; c.height = H;
             var x = c.getContext('2d');
-            x.drawImage(fig, parseFloat(fig.style.left) * k, parseFloat(fig.style.top) * k, parseFloat(fig.style.width) * k, parseFloat(fig.style.height) * k);
+            els.forEach(function (e) {
+                x.drawImage(e, parseFloat(e.style.left) * k, parseFloat(e.style.top) * k, parseFloat(e.style.width) * k, parseFloat(e.style.height) * k);
+            });
             var d = x.getImageData(0, 0, W, H).data, q = k / board.dpr;
             map = board.tiles.map(function (t) {
                 var x0 = Math.floor(t.x * q), y0 = Math.floor(t.y * q), x1 = Math.ceil((t.x + t.w) * q), y1 = Math.ceil((t.y + t.h) * q);
@@ -229,7 +235,7 @@
                 return n ? hit / n : 0;
             });
         } catch (e) { map = null; }
-        fig._cov = { key: key, map: map };
+        host._cov = { key: key, map: map };
         return map;
     }
 
@@ -371,7 +377,10 @@
         var c = silhouette(src, 'rgb(24,16,8)', 16);
         c.className = 'stage__shadow';
         c.style.width = c.style.height = '0px';      // sized by register(); never at its bitmap size
-        fig.parentNode.insertBefore(c, fig);
+        var z = parseInt(getComputedStyle(fig).zIndex, 10);
+        if (z > 1) c.style.zIndex = String(z - 1);
+        var host = fig.parentNode.tagName === 'PICTURE' ? fig.parentNode : fig;   // keep <picture> to <source> + <img>
+        host.parentNode.insertBefore(c, host);
         fig._shadow = c;
         return c;
     }
@@ -462,45 +471,75 @@
         var section = $('.hero');
         var stage = $('.hero__stage');
         var canvas = $('canvas', stage), fig = $('.stage__figure', stage);
-        var accents = $$('.acc', section);
-        var box = ART.art1.figure;
-        var msg = {}, words = [], state = 'img', ready = false, stageTop = 0;
+        var front = $('.stage__front', stage), lines = $('.stage__lines', stage);
+        var KEY = 'bermond', A = ART.bermond;
+        var msg = {}, words = [], shown = [], state = 'img', ready = false, stageTop = 0, enterAt = 0;
         var mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+        var images = null;
         // same breakpoint as the stacked hero in main.css
         var stacked = win.matchMedia('(max-width: 767px), (max-width: 1100px) and (orientation: portrait)');
 
         var board = new FlapBoard(canvas, {
             cols: 8, aspect: 1.28, gap: 3, radius: 2, split: 1, duration: 620,
-            group: function (t) { return state === 'img' ? wordAt(board, words, t) : null; },
-            face: function (t) { return reduce ? F.img('art1') : filler(t, 7); },
+            group: function (t) { return state === 'img' ? wordAt(board, shown, t) : null; },
+            face: function (t) { return reduce ? F.img(KEY) : filler(t, 7); },
             // what a flipped tile shows: the message under the image, the image under the message
-            alt: function (t) { return state === 'msg' ? F.img('art1') : messageFace(t); }
+            alt: function (t) { return state === 'msg' ? F.img(KEY) : hiddenFace(t); }
         });
         function messageFace(t) { return msgFace(msg, t, 1); }
+        // at rest a flipped tile shows its letter only when its whole word is in
+        // view, not under the portrait or the foreground pieces
+        function hiddenFace(t) { return wordAt(board, shown, t) ? messageFace(t) : filler(t, 1); }
+        function updateShown() {
+            var cov = coverageOf(board, [fig, front]);
+            shown = !cov ? [] : words.filter(function (w) {
+                return w.length >= 3 && w.every(function (q) { var t = board.at(q[0], q[1]); return t && cov[t.i] <= 0.1; });
+            });
+        }
         board.on('layout', function () {
-            register(fig, board, 'art1', box);
+            register(fig, board, KEY, A.figure);
+            register(front, board, KEY, A.front);
+            register(lines, board, KEY, A.lines);
             var r0 = Math.max(0, board.rows - 4);
-            msg = layout('HELLO I\u2019M BERMOND', { c0: 0, c1: board.cols, r0: r0, r1: board.rows });
+            msg = layout('HELLO I’M BERMOND', { c0: 0, c1: board.cols, r0: r0, r1: board.rows });
             words = wordsOf(msg);
+            if (ready) updateShown();
             measure();
         });
         function measure() { stageTop = stage.getBoundingClientRect().top + win.scrollY; }
 
-        function init(img, figImg) {
+        function init(img, figImg, frontImg, linesImg) {
+            images = { plate: img, figure: figImg, front: frontImg, lines: linesImg };
             shadowFor(fig, figImg);
-            board.setSource('art1', plate(img, figImg, box, 'art1'), { fx: 0.5, fy: 0.42 });
+            shadowFor(front, frontImg);
+            board.setSource(KEY, plate(img, null, null, KEY), { fx: 0.5, fy: 0.5 });
             board.resize();
-            if (reduce) stage.classList.add('is-ready');
             ready = true;
+            updateShown();
+            if (reduce) stage.classList.add('is-ready');
         }
 
-        /* opening: the board assembles the artwork tile by tile, then the
-           cut-out settles into its silhouette */
-        var idleOpt = { pick: function () { return state === 'img' && Math.random() < 0.45 ? wordPick(board, words, { map: msg, allow: ['BERMOND'], fig: fig }) : null; } };
+        /* the whole collage flattened once, for the footer wordmark */
+        function composite() {
+            if (!images || !images.plate) return null;
+            var c = doc.createElement('canvas'), im = images.plate;
+            c.width = im.naturalWidth; c.height = im.naturalHeight;
+            var x = c.getContext('2d'), k = c.width / A.w;
+            x.drawImage(im, 0, 0);
+            [['figure', A.figure], ['front', A.front], ['lines', A.lines]].forEach(function (p) {
+                var e = images[p[0]], b = p[1];
+                if (e) x.drawImage(e, b[0] * k, b[1] * k, b[2] * k, b[3] * k);
+            });
+            return c;
+        }
+
+        /* opening: the board assembles the background tile by tile, then the
+           collage is laid on plane by plane: portrait, foreground pieces, lines */
+        var idleOpt = { pick: function () { return state === 'img' && Math.random() < 0.45 ? wordPick(board, shown, { map: msg, allow: ['HELLO', 'BERMOND'] }) : null; } };
         function intro(delay) {
             if (reduce) { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); return; }
-            board.wave(function () { return F.img('art1'); }, { origin: [0, board.cols], speed: 62, jitter: 90, cycle: 2, delay: delay || 0 });
-            setTimeout(function () { stage.classList.add('is-ready'); }, (delay || 0) + 760);
+            board.wave(function () { return F.img(KEY); }, { origin: [0, board.cols], speed: 62, jitter: 90, cycle: 2, delay: delay || 0 });
+            setTimeout(function () { enterAt = performance.now(); stage.classList.add('is-ready'); }, (delay || 0) + 760);
             setTimeout(function () { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); board.quiet(2000); }, (delay || 0) + 1300);
         }
 
@@ -510,44 +549,57 @@
         });
         section.addEventListener('pointerleave', function () { mouse.tx = mouse.ty = 0; });
 
-        function tick() {
+        // a plane settling into place after it is laid on (0 → 1)
+        function settle(now, d) {
+            if (reduce || !enterAt) return 1;
+            var e = clamp((now - enterAt - d) / 700, 0, 1);
+            return 1 - Math.pow(1 - e, 3);
+        }
+
+        function tick(now) {
             if (!ready) return;
             var h = section.offsetHeight;
             var p = clamp(scrollY / h, 0, 1.2);
             if (p > 1.05) return;
+            now = now || performance.now();
             mouse.x = lerp(mouse.x, mouse.tx, 0.07);
             mouse.y = lerp(mouse.y, mouse.ty, 0.07);
             var mx = reduce ? 0 : mouse.x, my = reduce ? 0 : mouse.y;
-            // where the board flips to its message: side by side, a quarter of
-            // the way down the hero; stacked, once the board's top has passed
-            // a fifth of the screen (so the whole board is in view)
-            var T = stacked.matches ? stageTop - vh * 0.2 : h * 0.24;
+            // where the board flips to its message: side by side, early in the
+            // hero (the collage is large and needs room to fly off while the
+            // words are still in view); stacked, once the board's top has
+            // passed a fifth of the screen (so the whole board is in view)
+            var T = stacked.matches ? stageTop - vh * 0.2 : h * 0.14;
             var want = scrollY > T ? 'msg' : scrollY < T - 50 ? 'img' : state;
             if (want !== state) {
                 state = want;
                 section.classList.toggle('is-msg', state === 'msg');
                 var o = [(fig.offsetTop + fig.offsetHeight * 0.3) / (board.cssH / board.rows), (fig.offsetLeft + fig.offsetWidth * 0.55) / (board.cssW / board.cols)];
                 if (state === 'msg') board.wave(messageFace, { origin: o, speed: 70, jitter: 60, cycle: 2 });
-                else board.wave(function () { return F.img('art1'); }, { origin: [board.rows, 0], speed: 55, jitter: 40 });
+                else board.wave(function () { return F.img(KEY); }, { origin: [board.rows, 0], speed: 55, jitter: 40 });
             }
             var lift = reduce ? 0 : sstep(0, 0.5, p);
-            // the cut-out lifts off its imprint a little, then — once the
-            // message is on its way — out-scrolls the board (closer things move
-            // faster) and uncovers the rows where the words land
-            var after = reduce ? 0 : clamp((scrollY - T + vh * 0.05) / (vh * 0.36), 0, 1.6);
-            var rise = sstep(0, 1, Math.min(after, 1)) * board.cssH * 0.58 + Math.max(0, after - 1) * board.cssH * 0.3;
-            pose(fig, stage, mx * 9 - lift * 16, my * 6 - lift * 22 - rise, 1 + lift * 0.06, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 28, lift);
+            // the collage lifts off the board a little, then — once the message
+            // is on its way — its planes out-scroll the board, the nearer ones
+            // faster, and uncover the rows where the words land
+            var after = reduce ? 0 : clamp((scrollY - T + vh * 0.04) / (vh * 0.26), 0, 1.6);
+            var rise = sstep(0, 1, Math.min(after, 1)) * board.cssH * 0.8 + Math.max(0, after - 1) * board.cssH * 0.3;
+            var e1 = settle(now, 0), e2 = settle(now, 220), e3 = settle(now, 440);
+            pose(fig, stage, mx * 9 - lift * 16, my * 6 - lift * 22 - rise - 10 * (1 - e1), (1 + lift * 0.06) * (1 + 0.04 * (1 - e1)),
+                -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 28, lift, e1);
+            pose(front, stage, mx * 15 - lift * 22, my * 10 - lift * 30 - rise * 1.3 - 18 * (1 - e2), (1 + lift * 0.1) * (1 + 0.06 * (1 - e2)),
+                -mx * 9 + 9 + lift * 14, 14 + my * 5 + lift * 34, lift, e2);
+            lines.style.transform = 'translate3d(' + (mx * 21 - lift * 26).toFixed(2) + 'px,' + (my * 14 - lift * 36 - rise * 1.6 - 26 * (1 - e3)).toFixed(2) + 'px,0) scale(' + ((1 + lift * 0.12) * (1 + 0.08 * (1 - e3))).toFixed(4) + ')';
             // side by side, the board lags the scroll a little; stacked, content sits under it
             var drift = stacked.matches ? 0 : p * 60;
-            canvas.style.transform = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + drift).toFixed(2) + 'px,0)';
-            for (var i = 0; i < accents.length; i++) {
-                var d = accents[i]._d || (accents[i]._d = parseFloat(accents[i].getAttribute('data-depth')) || 0.5);
-                accents[i].style.transform = 'translate3d(' + (mx * d * 14).toFixed(2) + 'px,' + (my * d * 9 - p * d * 120).toFixed(2) + 'px,0)';
-            }
+            var bt = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + drift).toFixed(2) + 'px,0)';
+            canvas.style.transform = bt;
+            if (win2) win2.style.transform = bt;        // the lines' frame follows the board
         }
+        var win2 = $('.stage__window', stage);
         ticks.push(tick);
 
-        return { board: board, init: init, intro: intro, section: section, measure: measure };
+        return { board: board, init: init, intro: intro, section: section, measure: measure, composite: composite, key: KEY };
     })();
 
     /* ======================================================================
@@ -1127,10 +1179,11 @@
         var board = new FlapBoard(canvas, {
             cols: NAME.length, rows: 1, gap: 4, radius: 3, split: 2, duration: 640, glyph: 0.6,
             face: function () { return card(' '); },
-            alt: function () { return F.img('art1'); }
+            alt: function () { return F.img('portrait'); }
         });
         function init(img) {
-            board.setSource('art1', img, { fx: 0.62, fy: 0.3, zoom: 1.6 });
+            // a band across the eyes of Bermond's portrait
+            if (img) board.setSource('portrait', img, { fx: 0.5, fy: 0.33, zoom: 1.45 });
             board.resize();
             interactive(board, canvas, { hover: { hold: 1300, chain: 1 }, idle: { every: [1800, 3600], chain: [1, 2], hold: [900, 1500] } });
             new IntersectionObserver(function (es) {
@@ -1434,7 +1487,7 @@
 
     var loaded = {};
     function rebuildPlates() {
-        if (loaded.art1) { hero.board.setSource('art1', plate(loaded.art1[0], loaded.art1[1], ART.art1.figure, 'art1'), { fx: 0.5, fy: 0.42 }); }
+        if (loaded.bermond) { hero.board.setSource('bermond', plate(loaded.bermond[0], null, null, 'bermond'), { fx: 0.5, fy: 0.5 }); }
         if (loaded.art3) { wall.board.setSource('art3', plate(loaded.art3[3] || loaded.art3[0], loaded.art3[1], ART.art3.figure, 'art3'), { fx: 0.12, fy: 0.16 }); }
         if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); }
         boards.forEach(function (b) { b.cache.clear(); b.draw(); });
@@ -1468,9 +1521,21 @@
         doc.fonts.load('700 40px "Barlow Condensed"'), doc.fonts.load('400 40px "Funnel Display"'), doc.fonts.load('400 16px "Funnel Sans"')
     ]).catch(function () { }) : Promise.resolve();
 
+    function domImg(sel) {
+        var el = $(sel);
+        if (!el) return Promise.resolve(null);
+        return new Promise(function (res) {
+            if (el.complete && el.naturalWidth) return res(el);
+            el.addEventListener('load', function () { res(el); }, { once: true });
+            el.addEventListener('error', function () { res(null); }, { once: true });
+        });
+    }
     var jobs = [
         fontsReady,
-        Promise.all([art('art1'), figureOf('art1')])
+        Promise.all([
+            loadImg('assets/img/bermond.avif').then(function (im) { return im || art('bermond'); }),
+            figureOf('bermond'), domImg('.hero .stage__front'), domImg('.hero .stage__lines')
+        ])
     ];
     var done = 0, shown = 0, t0 = performance.now();
     jobs.forEach(function (j) { j.then(function () { done++; }); });
@@ -1492,11 +1557,11 @@
     Promise.all(jobs).then(function (res) {
         vw = win.innerWidth; vh = win.innerHeight;
         lb.cache.clear(); lb.draw();
-        loaded.art1 = res[1];
-        hero.init(res[1][0], res[1][1]);
+        loaded.bermond = res[1];
+        hero.init(res[1][0], res[1][1], res[1][2], res[1][3]);
         work.init();
         layers.init();
-        mark.init(res[1][0]);
+        mark.init(hero.composite());
         services.forEach(function (sv) { sv.init(); });
         timetable.init();
         weeks.init();
