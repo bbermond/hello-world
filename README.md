@@ -8,6 +8,7 @@ A static portfolio site with three tracks, one for each kind of job being target
 | Product Design | `/?track=product` (default) | Tier 2, senior product designer roles |
 | AI Product Leadership | `/?track=leader` | Tier 3, founding, head-of and AI product lead roles |
 
+- **Harmattan story:** `story.html` is the immersive scroll version (art direction in `docs/art-direction/dry-season-brief.md`). It takes the same `?track=` links.
 - Content lives in `assets/data.js`. Edit it there.
 - The master bio is `docs/profile.md`, and its open questions list what's still needed.
 - The job pipeline is `jobs/README.md`.

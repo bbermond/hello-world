@@ -76,7 +76,7 @@ A single charcoal pencil stroke about 2.5px wide, with slight width jitter (an S
 |---|---|---|---|
 | 0 | **Arrival: Kumbo market** | A market stall wall of photo cutouts and pasted graphic posters fills the screen, with dry-season haze. The hand-lettered name draws itself in top-left, and the pencil line starts there | `person.name` and the track `headline` |
 | 1 | **The poster wall** | Each poster is a project tile. Hovering flips it (front: the artwork, back: the outline pattern plus a one-line summary). Clicking opens the case study | `craft` track projects: CITS, CIMFEST, NewU, Colorfluid |
-| 2 | **Meet Bermond** | Bermond's cutout stands on the right as in the sketch, over a Harmattan Gold sun disc (a nod to ref 1). As the cursor approaches, **the eyes pop forward and follow it**. A gust lifts the hat and the journey begins | Track `summary` and `skills` |
+| 2 | **Meet Bermond** | The bio and skills appear over a big Harmattan Gold sun disc (a nod to ref 1). *(As built, the portrait with the popping eyes sits in chapter 0, on the right as in the sketch, and the hat lifts off as soon as you start scrolling)* | Track `summary` and `skills` |
 | 3 | **The road** | The sketch's dotted path becomes the red dirt road. Scrolling walks the camera down it while hills, shrubs and lone trees parallax past. Career milestones sit on roadside signposts | `experience` timeline |
 | 4 | **Dust-storm reveals** | Each case study arrives inside a swirling Harmattan dust whirl that clears to show the content against a golden savanna | `product` track projects |
 | 5 | **Afrofuture** | Night falls. Kumbo Night, Ndop indigo and the pop accents take over, along with ref 1-style cutouts, arc letterforms and the sun disc. The work is shown as the market of the future | `leader` track: IkniteOS, Iknite Studio, the MVP masterclass |
@@ -124,11 +124,13 @@ A single charcoal pencil stroke about 2.5px wide, with slight width jitter (an S
 ---
 
 ## 6. Tech approach
-- A static site as now, with **no build step**. Libraries load from cdnjs or jsdelivr: **GSAP + ScrollTrigger + MotionPathPlugin** for the scroll choreography and **Lenis** for smooth scroll. Dust uses plain canvas 2D.
-- Files: `story.html`, `assets/story.js`, `assets/story.css`, `assets/story/` (images and audio). Content is read only from `assets/data.js`, with nothing hard-coded.
-- **Performance budget:** under 3 MB transferred on first load with later chapters lazy-loaded, images in AVIF with a WebP fallback, max 2400px wide. 60fps on a 2020 MacBook Air and at least 45fps on a mid-range Android phone.
-- **Accessibility:** real text in reading order. `prefers-reduced-motion` turns transitions into cuts and tile flips into crossfades, and turns off the dust and the eye pop. Every interactive tile is keyboard-focusable (focus flips it, Enter opens it). Sound is opt-in and contrast is AA throughout.
-- **Mobile:** with no hover, tiles flip as a domino sequence when they scroll into view and on tap. Bermond moves above the text instead of beside it.
+- **Built (v0 prototype):** `story.html`, `assets/story.js` and `assets/story.css`. It's static with **no dependencies and no build step**, written in vanilla JS. One `requestAnimationFrame` loop reads scroll positions and drives the bands, line, road, parallax, eyes, hat, dust and progress rail. There's no scroll-jacking: native scroll is the camera. Content is read only from `assets/data.js`.
+- The tile clack is synthesised with Web Audio (a filtered noise burst plus a low thump), so it needs no audio files. Sampled clacks are optional.
+- GSAP and Lenis were dropped. Vanilla code covers every effect and keeps the page testable offline. Add GSAP later only if a specific effect needs it.
+- **Performance budget:** under 3 MB transferred on first load with later chapters lazy-loaded, images in AVIF with a WebP fallback, max 2400px wide. 60fps on a 2020 MacBook Air and at least 45fps on a mid-range Android phone. The dust uses 1,500 particles on desktop and 500 on touch or narrow screens.
+- **Accessibility:** real text in reading order. `prefers-reduced-motion` turns transitions into cuts and tile flips into crossfades, and turns off the dust, the eye pop and the flying hat (a static hat is shown instead). Posters flip on keyboard focus, and sound is opt-in.
+- **Mobile:** tiles flip as a domino sequence when they scroll into view and on tap or drag. Posters flip on tap. The progress rail shrinks to a thin bar.
+- Asset slots and where each one plugs in are listed in `assets/story/README.md`.
 
 ---
 
@@ -176,17 +178,16 @@ Remove the café background, **both people in the background**, the newspaper an
 
 ## 9. Codex hand-off prompt
 
-Paste this into Codex on Bermond's computer:
+The prototype already works end to end. Codex's job is the pixels. Paste this into Codex on Bermond's computer:
 
-> Repo `bbermond/hello-world`, branch `agent-blink_cld/youthful-fermi-kydu8m`. Read `docs/art-direction/dry-season-brief.md` and `CLAUDE.md` first. Build `story.html`, `assets/story.js` and `assets/story.css` as a static site with no build step, using GSAP + ScrollTrigger + MotionPathPlugin and Lenis from cdnjs or jsdelivr. All copy comes from `assets/data.js` and none is hard-coded.
-> Work in milestones and commit after each one:
-> 1. Chapter skeleton (§4) with real text, the progress rail, and pencil-line SVG transitions between chapters.
-> 2. Tile component: hover ripple flip, domino scroll band, clack audio with an opt-in toggle (§5).
-> 3. Portrait: cutout per §7, layered eyes that pop and follow, and the hat motion path.
-> 4. Dust-storm reveal canvas and the Afrofuture chapter.
-> 5. Polish: performance budget and accessibility (§6), with reduced-motion and mobile fallbacks.
+> Repo `bbermond/hello-world`, branch `agent-blink_cld/youthful-fermi-kydu8m`. Read `docs/art-direction/dry-season-brief.md`, `assets/story/README.md` and `CLAUDE.md` first. `story.html` is a working vanilla-JS prototype. Keep its interaction code and structure.
+> 1. Generate the assets in brief §8 and save them into the slots listed in `assets/story/README.md` (AVIF/WebP, sizes as listed).
+> 2. Cut out Bermond's portrait (`assets/story/src/portrait.jpg`) per §7. Wire it into `buildPortrait()` and update `EYES` so the animated eyes sit exactly on the photo's eyes.
+> 3. Replace the procedural market wall and savanna SVGs with the generated layers, keeping `data-parallax`.
+> 4. Polish the layout and type against §3 and §4 at 1280px and 375px.
+> 5. Run the QA in §10, then commit.
 >
-> Generate the assets in §8 into `assets/story/` (AVIF/WebP). Never reproduce reference 1 (a third-party artwork). Don't put personal information beyond what's already in `assets/data.js`.
+> Never reproduce reference 1 (third-party artwork). No personal information beyond what's in `assets/data.js`.
 
 ---
 
@@ -195,7 +196,7 @@ Paste this into Codex on Bermond's computer:
 | # | Milestone | Sign-off |
 |---|---|---|
 | 1 | Brief approved, assets supplied | Bermond |
-| 2 | Greybox: chapters, rail, line transitions, real content | Bermond + creative-director agent |
+| 2 | ✅ v0 prototype: all chapters and interactions working with procedural placeholders (`story.html`) | Bermond + creative-director agent |
 | 3 | Tiles, sound, eyes | Bermond |
 | 4 | Dust, hat, Afrofuture | Bermond |
 | 5 | Polish, performance and accessibility pass; `story.html` becomes the homepage and the current site moves to `/classic/` | Bermond |
