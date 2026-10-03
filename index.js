@@ -28,7 +28,7 @@
         art1: { w: 1472, h: 1472, figure: [300, 109, 979, 1101] },
         art2: { w: 1472, h: 1472, figure: [375, 250, 631, 839] },
         art3: { w: 1472, h: 1472, figure: [177, 238, 735, 1116] },
-        art4: { w: 1920, h: 2400, figure: [0, 704, 1722, 1696], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
+        art4: { w: 1920, h: 2400, figure: [231, 703, 1436, 1681], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
     };
 
     /* ---------- palette ---------- */
@@ -121,9 +121,17 @@
         c.width = img.naturalWidth; c.height = img.naturalHeight;
         var x = c.getContext('2d');
         x.drawImage(img, 0, 0);
-        if (!fig) return c;
-        var k = c.width / ART[key].w;
-        x.drawImage(halftone(fig), box[0] * k, box[1] * k, box[2] * k, box[3] * k);
+        if (fig) {
+            var k = c.width / ART[key].w;
+            x.drawImage(halftone(fig), box[0] * k, box[1] * k, box[2] * k, box[3] * k);
+        }
+        // in dark mode the paper of the artworks would glow: tone it down evenly
+        if (currentTheme() === 'dark') {
+            x.globalCompositeOperation = 'multiply';
+            x.fillStyle = 'rgb(205,199,188)';
+            x.fillRect(0, 0, c.width, c.height);
+            x.globalCompositeOperation = 'source-over';
+        }
         return c;
     }
 
@@ -223,6 +231,17 @@
         } catch (e) { map = null; }
         fig._cov = { key: key, map: map };
         return map;
+    }
+
+    /* The tiles of the hidden word a tile belongs to, in reading order. */
+    function wordAt(board, words, t) {
+        for (var i = 0; i < words.length; i++) {
+            var w = words[i];
+            for (var j = 0; j < w.length; j++) {
+                if (w[j][0] === t.r && w[j][1] === t.c) return w.map(function (q) { return board.at(q[0], q[1]); }).filter(Boolean);
+            }
+        }
+        return null;
     }
 
     /* Idle reveal of one whole hidden word, left to right: words of three
@@ -452,6 +471,7 @@
 
         var board = new FlapBoard(canvas, {
             cols: 8, aspect: 1.28, gap: 3, radius: 2, split: 1, duration: 620,
+            group: function (t) { return state === 'img' ? wordAt(board, words, t) : null; },
             face: function (t) { return reduce ? F.img('art1') : filler(t, 7); },
             // what a flipped tile shows: the message under the image, the image under the message
             alt: function (t) { return state === 'msg' ? F.img('art1') : messageFace(t); }
@@ -547,6 +567,7 @@
 
         var board = new FlapBoard(canvas, {
             cols: 22, aspect: 1.3, gap: 3, radius: 2, split: 1, duration: 600,
+            group: function (t) { return stageIdx <= 0 || stageIdx === 3 ? wordAt(board, words, t) : null; },
             face: function () { return F.img('art3'); },
             alt: function (t) { return t.home && t.home.k === 'img' ? (faceFor(1, t)) : F.img('art3'); }
         });
@@ -924,46 +945,12 @@
             cols: 24, rows: 2, gap: 3, radius: 2, split: 1, duration: 520, glyph: 0.64,
             face: function () { return card(' '); }
         });
-        var blank = {};
-        // in dark mode, tiles that would only show the artwork's bare paper
-        // glow; those become cards instead
-        function homeFace(t) { return blank[t.i] && currentTheme() === 'dark' ? filler(t, 4, true) : F.img('art2'); }
         var sboard = new FlapBoard(scanvas, {
             cols: 4, aspect: 1.3, gap: 3, radius: 2, split: 1, duration: 600,
-            face: homeFace,
+            face: function () { return F.img('art2'); },
             alt: function (t) { return t.home && t.home.k === 'img' ? filler(t, 4) : F.img('art2'); }
         });
         sboard.on('layout', function () { register(fig, sboard, 'art2', box); });
-        function paleTiles() {
-            var out = {};
-            try {
-                var src = sboard.sources.art2;
-                if (!src || !src.map) return out;
-                var k = 0.25, W = Math.max(1, Math.round(sboard.dw * k)), H = Math.max(1, Math.round(sboard.dh * k));
-                var c = doc.createElement('canvas'); c.width = W; c.height = H;
-                var x = c.getContext('2d'), m = src.map, im = src.img;
-                x.drawImage(im, m.ox * k, m.oy * k, (im.naturalWidth || im.width) * m.sc * k, (im.naturalHeight || im.height) * m.sc * k);
-                var d = x.getImageData(0, 0, W, H).data;
-                sboard.tiles.forEach(function (t) {
-                    var x0 = Math.floor(t.x * k), y0 = Math.floor(t.y * k), x1 = Math.ceil((t.x + t.w) * k), y1 = Math.ceil((t.y + t.h) * k);
-                    var n = 0, pale = 0;
-                    for (var yy = y0; yy < y1 && yy < H; yy++) {
-                        for (var xx = x0; xx < x1 && xx < W; xx++) {
-                            var o = (yy * W + xx) * 4, hi = Math.max(d[o], d[o + 1], d[o + 2]), lo = Math.min(d[o], d[o + 1], d[o + 2]);
-                            n++; if (hi > 165 && hi - lo < 42) pale++;
-                        }
-                    }
-                    if (n && pale / n > 0.75) out[t.i] = true;
-                });
-            } catch (e) { }
-            return out;
-        }
-        function retheme() {
-            if (!sboard.dw) return;
-            blank = paleTiles();
-            sboard.setAll(homeFace);
-        }
-
         function cols() { return clamp(Math.round(canvas.clientWidth / (vw < 700 ? 30 : 52)), 11, 30); }
         function show() {
             var m = MESSAGES[i % MESSAGES.length];
@@ -994,7 +981,6 @@
             shadowFor(fig, figImg);
             sboard.setSource('art2', plate(img, figImg, box, 'art2'), { fx: 0.5, fy: 0.45 });
             sboard.resize();
-            retheme();
             stage.classList.add('is-ready');
             var lift = 0, target = 0;
             stage.addEventListener('pointerenter', function () { target = 1; });
@@ -1011,7 +997,7 @@
                 if (es[0].isIntersecting) { show(); if (!reduce) timer = setInterval(show, 5200); }
             }, { threshold: 0.2 }).observe(canvas);
         }
-        return { init: init, board: board, sboard: sboard, retheme: retheme, resize: function () { board.o.cols = cols(); board.o.rows = board.o.cols >= 20 ? 2 : 5; } };
+        return { init: init, board: board, sboard: sboard, resize: function () { board.o.cols = cols(); board.o.rows = board.o.cols >= 20 ? 2 : 5; } };
     })();
 
     /* ======================================================================
@@ -1107,8 +1093,16 @@
             }
             return card(' ');
         }
+        var nowEl = $('[data-now]'), now = nowEl ? new FlapText(nowEl, { duration: 380, stagger: 22 }) : null;
+        function readout() {
+            if (!now) return;
+            var txt = 'NOW · WEEK ' + pad(active + 1, 2) + ' · ' + STEPS[active];
+            while (txt.length < now.cells.length) txt += ' ';
+            now.set(txt.slice(0, now.cells.length), { cycle: 0, stagger: 16 });
+        }
         function render(instant) {
             board.wave(function (t) { return faceAt(t); }, { origin: [active, 14], speed: instant ? 0 : 40, cycle: instant || reduce ? 0 : 2 });
+            readout();
         }
         canvas.addEventListener('click', function (e) {
             var r = canvas.getBoundingClientRect();
@@ -1268,13 +1262,17 @@
     if (fine) {
         var cur = $('.cursor'), curLabel = $('.cursor__label');
         var cp = { x: -100, y: -100, tx: -100, ty: -100 }, lastScroll = -1;
+        var hintBoard = null, hintUntil = 0;
         function cursorState(t) {
             if (!t) return;
             var onBoard = t.tagName === 'CANVAS' && t.closest('.stage, .wall__stage');
             var onLink = !onBoard && t.closest('a, button');
             cur.classList.toggle('is-board', !!onBoard);
             cur.classList.toggle('is-link', !!onLink);
-            cur.classList.toggle('has-label', !!onBoard);
+            // the hint shows for a moment on arrival, then gets out of the way of the words
+            if (onBoard && onBoard !== hintBoard) { hintBoard = onBoard; hintUntil = performance.now() + 1400; }
+            if (!onBoard) hintBoard = null;
+            cur.classList.toggle('has-label', !!onBoard && performance.now() < hintUntil);
             if (onBoard) curLabel.textContent = 'Move to flip';
         }
         win.addEventListener('pointermove', function (e) { cp.tx = e.clientX; cp.ty = e.clientY; cursorState(e.target); }, { passive: true });
@@ -1283,6 +1281,7 @@
             cp.x = lerp(cp.x, cp.tx, 0.24); cp.y = lerp(cp.y, cp.ty, 0.24);
             cur.style.transform = 'translate3d(' + cp.x.toFixed(1) + 'px,' + cp.y.toFixed(1) + 'px,0)';
             if (scrollY !== lastScroll && cp.tx > 0) { lastScroll = scrollY; cursorState(doc.elementFromPoint(cp.tx, cp.ty)); }
+            if (hintBoard && performance.now() > hintUntil && cur.classList.contains('has-label')) cur.classList.remove('has-label');
         });
     }
 
@@ -1437,7 +1436,7 @@
     function rebuildPlates() {
         if (loaded.art1) { hero.board.setSource('art1', plate(loaded.art1[0], loaded.art1[1], ART.art1.figure, 'art1'), { fx: 0.5, fy: 0.42 }); }
         if (loaded.art3) { wall.board.setSource('art3', plate(loaded.art3[3] || loaded.art3[0], loaded.art3[1], ART.art3.figure, 'art3'), { fx: 0.12, fy: 0.16 }); }
-        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); contact.retheme(); }
+        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); }
         boards.forEach(function (b) { b.cache.clear(); b.draw(); });
     }
 
@@ -1458,7 +1457,7 @@
        ====================================================================== */
     var loader = $('.loader');
     var countEl = $('[data-count]');
-    var counter = new FlapText(countEl, { duration: 190, stagger: 0, glyphs: '0123456789' });
+    var counter = new FlapText(countEl, { duration: 90, stagger: 0, glyphs: '0123456789' });
     var lb = new FlapBoard($('.loader__board'), {
         cols: clamp(Math.round(doc.documentElement.clientWidth / 92), 6, 18), aspect: 1.3, gap: 2, radius: 2, split: 1, duration: 560,
         face: function (t) { return (t.r + t.c) % 9 === 0 ? weave(['warp', 'weft', 'lozenge'][(t.r + t.c) % 3], t.r % 2 === 1) : F.fill(C.card); }
@@ -1485,7 +1484,8 @@
         var timeP = MIN ? clamp((performance.now() - t0) / MIN, 0, 1) : 1;
         // count from the first frame; the last stretch waits for the hero's art
         var target = Math.floor(Math.min(timeP, 0.6 + 0.4 * real) * 100);
-        if (target > shown) { shown = Math.min(100, shown + Math.max(1, Math.round((target - shown) * 0.5))); counter.set(pad(shown, 3), { stagger: 40, order: 'rtl' }); }
+        target = Math.min(target, 99);                 // 100 is set once, from 099
+        if (target > shown) { shown = Math.min(100, shown + Math.max(1, Math.round((target - shown) * 0.5))); counter.set(pad(shown, 3), { stagger: 0 }); }
         if (shown >= 100) clearInterval(countTimer);
     }, 110);
 
@@ -1507,8 +1507,11 @@
         var wait = Math.max(0, MIN + (MIN ? 150 : 0) - (performance.now() - t0));
         setTimeout(function () {
             clearInterval(countTimer);
-            if (!seen) counter.set('100', { stagger: 60, order: 'rtl' });
-            setTimeout(reveal, reduce || seen ? 0 : 260);
+            if (reduce || seen) { reveal(); return; }
+            // the last two cards: 099, then 100, held a beat before the wipe
+            var last = shown < 99 ? ['099', '100'] : ['100'];
+            last.forEach(function (v, k) { setTimeout(function () { counter.set(v, { stagger: 0 }); }, k * 130); });
+            setTimeout(reveal, (last.length - 1) * 130 + 380);
         }, wait);
     });
 

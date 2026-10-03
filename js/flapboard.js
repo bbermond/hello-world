@@ -348,12 +348,19 @@
     var step = opt.step || 70;
     var prev = this.lastHover;
     this.lastHover = t;
+    // a tile that belongs to a hidden word brings the whole word up
+    var group = this.o.group ? this.o.group(t) : null;
+    if (group && group.length) {
+      for (var g = 0; g < group.length; g++) this.poke(group[g], g * 55, hold + 400);
+      return;
+    }
     this.poke(t, 0, hold);
     if (prev) {
       var dr = Math.sign(t.r - prev.r), dc = Math.sign(t.c - prev.c);
       for (var k = 1; k <= chain; k++) {
         var n = this.at(t.r + dr * k, t.c + dc * k);
-        if (n) this.poke(n, k * step, hold - k * 120);
+        if (!n || (this.o.group && this.o.group(n))) break;     // never half a word
+        this.poke(n, k * step, hold - k * 120);
       }
     }
   };
