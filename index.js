@@ -533,8 +533,17 @@
             new IntersectionObserver(function (es, ob) {
                 if (!es[0].isIntersecting) return;
                 ob.disconnect();
+                // each project gets its own crop, so the previews don't just repeat
+                // the boards above: the kente wrap, the gold foil, the collage
+                // blocks, the sun and leaves
+                var CROP = {
+                    art1: { zoom: 1.85, fx: 0.42, fy: 0.08 },
+                    art2: { zoom: 1.7, fx: 0.86, fy: 0.3 },
+                    art3: { zoom: 1.5, fx: 0.92, fy: 0.55 },
+                    art4: { zoom: 1.45, fx: 0.72, fy: 0.12 }
+                };
                 ['art1', 'art2', 'art3', 'art4'].forEach(function (k) {
-                    art(k).then(function (im) { if (im) { board.setSource(k, im, {}); thumbs.forEach(function (b) { if (b.key === k) { b.setSource(k, im, {}); b.draw(); } }); } });
+                    art(k).then(function (im) { if (im) { board.setSource(k, im, CROP[k]); thumbs.forEach(function (b) { if (b.key === k) { b.setSource(k, im, CROP[k]); b.draw(); } }); } });
                 });
             }, { rootMargin: '900px 0px' }).observe(list);
             if (fine) board.resize(canvas.clientWidth || 280, canvas.clientHeight || 350);
@@ -1207,7 +1216,7 @@
        ====================================================================== */
     var loader = $('.loader');
     var countEl = $('[data-count]');
-    var counter = new FlapText(countEl, { duration: 300, stagger: 0, glyphs: '0123456789' });
+    var counter = new FlapText(countEl, { duration: 190, stagger: 0, glyphs: '0123456789' });
     var lb = new FlapBoard($('.loader__board'), {
         cols: clamp(Math.round(doc.documentElement.clientWidth / 92), 6, 18), aspect: 1.3, gap: 2, radius: 2, split: 1, duration: 560,
         face: function (t) { return (t.r + t.c) % 9 === 0 ? weave(['warp', 'weft', 'lozenge'][(t.r + t.c) % 3], t.r % 2 === 1) : F.fill(C.card); }
@@ -1259,7 +1268,7 @@
         if (reduce) { loader.remove(); hero.intro(0); return; }
         loader.classList.add('is-out');
         lb.wave(function () { return F.clear(); }, { origin: [lb.rows, 0], speed: 46, jitter: 70 });
-        titles.forEach(function (t, i) { t.intro({ delay: 380 + i * 260, stagger: 60, cycle: 2 }); });
+        titles.forEach(function (t, i) { t.intro({ delay: 420 + i * 240, stagger: 48, cycle: 0, duration: 620 }); });
         hero.intro(520);
         lb.on('rest', function () { loader.remove(); lb.destroy(); });
         loader.classList.add('is-done');
