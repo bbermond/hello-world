@@ -66,9 +66,11 @@
         <p class="menu__head mono"><span>Departures</span><span>Gate</span></p>
         <ul class="menu__list">
             <li><a href="#about"><span class="menu__word" data-menu-word>About</span><span class="menu__gate mono">01</span></a></li>
-            <li><a href="#work"><span class="menu__word" data-menu-word>Work</span><span class="menu__gate mono">02</span></a></li>
-            <li><a href="#process"><span class="menu__word" data-menu-word>Process</span><span class="menu__gate mono">03</span></a></li>
-            <li><a href="#contact"><span class="menu__word" data-menu-word>Contact</span><span class="menu__gate mono">04</span></a></li>
+            <li><a href="#services"><span class="menu__word" data-menu-word>Services</span><span class="menu__gate mono">02</span></a></li>
+            <li><a href="#work"><span class="menu__word" data-menu-word>Work</span><span class="menu__gate mono">03</span></a></li>
+            <li><a href="#layers"><span class="menu__word" data-menu-word>Layers</span><span class="menu__gate mono">04</span></a></li>
+            <li><a href="#process"><span class="menu__word" data-menu-word>Process</span><span class="menu__gate mono">05</span></a></li>
+            <li><a href="#contact"><span class="menu__word" data-menu-word>Contact</span><span class="menu__gate mono">06</span></a></li>
         </ul>
         <p class="menu__foot mono"><span data-clock-menu>Now boarding</span><a href="mailto:hello@example.com" data-email>Email</a></p>
     </nav>
@@ -134,7 +136,7 @@
                 </header>
                 <div class="wall__stage stage" data-stage="wall">
                     <canvas class="stage__board" aria-hidden="true"></canvas>
-                    <img class="stage__figure" src="assets/img/art3-figure.webp" alt="" width="733" height="1129" decoding="async">
+                    <img class="stage__figure" src="assets/img/art3-figure.webp" alt="" width="753" height="1132" decoding="async">
                 </div>
                 <p class="sr-only">Every image has a story underneath. Design that flips the script.</p>
                 <div class="wall__progress mono" aria-hidden="true"><span data-wall-step>01</span> / 03</div>
@@ -143,31 +145,23 @@
 
         <!-- 03 · services -->
         <section class="services" id="services" data-section="Services">
+            <p class="eyebrow mono" data-reveal>(02) Services</p>
             <h2 class="section-title" data-reveal>I can help you with ...</h2>
             <ol class="services__list">
                 <li class="service" data-reveal data-num="01" data-word="DESIGN">
-                    <div class="service__top" aria-hidden="true">
-                        <canvas class="service__num"></canvas>
-                        <canvas class="service__strip"></canvas>
-                    </div>
+                    <canvas class="service__board" aria-hidden="true"></canvas>
                     <span class="service__rule" aria-hidden="true"></span>
                     <h3><span class="sr-only">01. </span>Design</h3>
                     <p>Web designs that pull your audience in and create the experience they came for — and the one they remember.</p>
                 </li>
                 <li class="service" data-reveal data-num="02" data-word="BUILD">
-                    <div class="service__top" aria-hidden="true">
-                        <canvas class="service__num"></canvas>
-                        <canvas class="service__strip"></canvas>
-                    </div>
+                    <canvas class="service__board" aria-hidden="true"></canvas>
                     <span class="service__rule" aria-hidden="true"></span>
                     <h3><span class="sr-only">02. </span>Development</h3>
                     <p>Hand-built, fast and accessible front-ends that bring the visuals to life, down to the very last flip.</p>
                 </li>
                 <li class="service" data-reveal data-num="03" data-word="ALL IN">
-                    <div class="service__top" aria-hidden="true">
-                        <canvas class="service__num"></canvas>
-                        <canvas class="service__strip"></canvas>
-                    </div>
+                    <canvas class="service__board" aria-hidden="true"></canvas>
                     <span class="service__rule" aria-hidden="true"></span>
                     <h3><span class="sr-only">03. </span>The Full Package</h3>
                     <p>Identity, design and development under one roof — nothing lost in translation, everything on brand.</p>
@@ -177,6 +171,7 @@
 
         <!-- 04 · selected work -->
         <section class="work" id="work" data-section="Work">
+            <p class="eyebrow mono" data-reveal>(03) Work</p>
             <header class="work__head" data-reveal>
                 <h2 class="section-title">Selected Work<sup>(4)</sup></h2>
                 <p class="mono">A piece from my selection of favourites</p>
@@ -227,7 +222,7 @@
             <div class="layers__sticky">
                 <div class="layers__dim" aria-hidden="true"></div>
                 <div class="layers__copy">
-                    <p class="mono">(04) Process, in pieces</p>
+                    <p class="mono">(04) Layers</p>
                     <h2 id="layers-title" class="layers__title">Every visual is a stack of decisions.</h2>
                     <p class="layers__lede">Pull a collage apart and you find the thinking: a field of colour, a found texture, a portrait, a living detail. I design websites the same way — in layers that each earn their place.</p>
                 </div>
@@ -240,10 +235,10 @@
                     </div>
                 </div>
                 <div class="layers__labels mono" aria-hidden="true">
-                    <span class="layers__label"><b>01</b> Field · #61B9BE</span>
-                    <span class="layers__label"><b>02</b> Sun · paper cut</span>
-                    <span class="layers__label"><b>03</b> Portrait · halftone</span>
-                    <span class="layers__label"><b>04</b> Foliage · botanical print</span>
+                    <span class="layers__label"><span><b>01</b> Field · #61B9BE</span></span>
+                    <span class="layers__label"><span><b>02</b> Sun · cut paper</span></span>
+                    <span class="layers__label"><span><b>03</b> Portrait · halftone</span></span>
+                    <span class="layers__label"><span><b>04</b> Foliage · print</span></span>
                 </div>
                 <div class="layers__board" aria-hidden="true">
                     <p class="layers__head mono"><span>Layer</span><span>Element</span><span>Depth</span></p>
@@ -263,31 +258,38 @@
         <!-- 06 · process -->
         <section class="process" id="process" data-section="Process">
             <div class="process__intro" data-reveal>
+                <p class="eyebrow mono">(05) Process</p>
                 <h2 class="section-title">My way of getting things done</h2>
                 <p>Fast and transparent: the path to a website that represents your brand in the best of light is about four weeks. One clear step at a time, so you always know where your project stands.</p>
+                <div class="weeks">
+                    <canvas class="weeks__board" aria-hidden="true"></canvas>
+                    <p class="weeks__label mono"><span class="sr-only">4 </span>weeks from kick-off<br>to launch</p>
+                </div>
+            </div>
+            <div class="process__steps">
                 <div class="timetable" aria-hidden="true">
                     <p class="timetable__head mono"><span>Wk</span><span>Step</span><span>Status</span></p>
                     <canvas></canvas>
                 </div>
+                <ol class="process__list">
+                    <li class="step" data-reveal>
+                        <h3><button type="button" aria-expanded="true" aria-controls="step-1"><span class="step__n">01</span><span class="step__t">Wireframes</span><span class="step__tag mono">UX</span><i class="step__i" aria-hidden="true"></i></button></h3>
+                        <div class="step__panel" id="step-1" role="region"><p>Content, structure and user journeys, mapped into wireframes we can test before a single pixel is polished.</p></div>
+                    </li>
+                    <li class="step" data-reveal>
+                        <h3><button type="button" aria-expanded="false" aria-controls="step-2"><span class="step__n">02</span><span class="step__t">Design</span><span class="step__tag mono">UI &amp; art direction</span><i class="step__i" aria-hidden="true"></i></button></h3>
+                        <div class="step__panel" id="step-2" role="region" hidden><p>Art direction, typography, colour and motion: the visual layer that gives your brand its voice.</p></div>
+                    </li>
+                    <li class="step" data-reveal>
+                        <h3><button type="button" aria-expanded="false" aria-controls="step-3"><span class="step__n">03</span><span class="step__t">Build</span><span class="step__tag mono">Webflow · code</span><i class="step__i" aria-hidden="true"></i></button></h3>
+                        <div class="step__panel" id="step-3" role="region" hidden><p>Semantic, accessible and fast builds in Webflow or hand-written code, tuned for every screen size.</p></div>
+                    </li>
+                    <li class="step" data-reveal>
+                        <h3><button type="button" aria-expanded="false" aria-controls="step-4"><span class="step__n">04</span><span class="step__t">Launch</span><span class="step__tag mono">Analytics · support</span><i class="step__i" aria-hidden="true"></i></button></h3>
+                        <div class="step__panel" id="step-4" role="region" hidden><p>Analytics, SEO foundations and a hand-over session, plus ongoing care once you’re live.</p></div>
+                    </li>
+                </ol>
             </div>
-            <ol class="process__list">
-                <li class="step" data-reveal>
-                    <h3><button type="button" aria-expanded="false" aria-controls="step-1"><span class="step__n">01.</span><span class="step__t">UX / Wireframing</span><i class="step__i" aria-hidden="true"></i></button></h3>
-                    <div class="step__panel" id="step-1" role="region" hidden><p>Content, structure and user journeys mapped into wireframes we can test before a single pixel is polished.</p><span class="step__week mono">Week 01</span></div>
-                </li>
-                <li class="step" data-reveal>
-                    <h3><button type="button" aria-expanded="false" aria-controls="step-2"><span class="step__n">02.</span><span class="step__t">Web Design</span><i class="step__i" aria-hidden="true"></i></button></h3>
-                    <div class="step__panel" id="step-2" role="region" hidden><p>Art direction, typography, colour and motion — the visual layer that gives your brand its voice.</p><span class="step__week mono">Week 02</span></div>
-                </li>
-                <li class="step" data-reveal>
-                    <h3><button type="button" aria-expanded="false" aria-controls="step-3"><span class="step__n">03.</span><span class="step__t">Web Development</span><i class="step__i" aria-hidden="true"></i></button></h3>
-                    <div class="step__panel" id="step-3" role="region" hidden><p>Semantic, accessible and fast builds in Webflow or hand-written code, tuned for every screen size.</p><span class="step__week mono">Week 03</span></div>
-                </li>
-                <li class="step" data-reveal>
-                    <h3><button type="button" aria-expanded="false" aria-controls="step-4"><span class="step__n">04.</span><span class="step__t">Analytics Setup / Support</span><i class="step__i" aria-hidden="true"></i></button></h3>
-                    <div class="step__panel" id="step-4" role="region" hidden><p>Analytics, SEO foundations and a hand-over session — plus ongoing care once you’re live.</p><span class="step__week mono">Week 04</span></div>
-                </li>
-            </ol>
         </section>
 
         <!-- 07 · contact -->
@@ -295,6 +297,7 @@
             <div class="contact__board"><canvas aria-hidden="true"></canvas><p class="sr-only">Now boarding: your next project.</p></div>
             <div class="contact__grid">
                 <div class="contact__copy">
+                    <p class="eyebrow mono" data-reveal>(06) Contact</p>
                     <h2 class="contact__title" data-reveal>Let’s talk about a project, collaboration or an idea you may have</h2>
                     <div class="contact__actions">
                         <a class="pill pill--lg" href="mailto:hello@example.com" data-email data-magnetic><span>Drop me a line</span><i aria-hidden="true"></i></a>
@@ -323,7 +326,7 @@
         <p class="foot__credit mono">Collage artworks signed “Hej ’24” — all rights remain with the artist.</p>
     </footer>
 
-    <div class="indicator mono" aria-hidden="true"><span data-indicator-num>01</span><i></i><span data-indicator-name>Index</span></div>
+    <div class="indicator mono" aria-hidden="true"><span data-indicator-num>00</span><i></i><span data-indicator-name>Index</span></div>
     <div class="cursor" aria-hidden="true"><span class="cursor__ring"></span><span class="cursor__label"></span></div>
     <canvas class="curtain" aria-hidden="true"></canvas>
 

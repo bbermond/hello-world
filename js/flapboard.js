@@ -286,14 +286,14 @@
         var from = showing.k === 'char' ? D.indexOf(showing.ch) : 0;
         if (from < 0) from = 0;
         var dist = (to - from + D.length) % D.length;
-        var steps = Math.min(dist, cycle * 4);
+        var steps = Math.min(dist, Math.min(6, cycle * 3));
         for (var i = steps - 1; i >= 1; i--) {
           var g = D[(to - i + D.length) % D.length];
-          t.queue.push({ face: face.char(g, f.bg, f.fg), at: at, speed: 0.13 });
+          t.queue.push({ face: face.char(g, f.bg, f.fg), at: at, ms: FlapBoard.STEP_MS });
         }
       }
     }
-    t.queue.push({ face: f, at: at, speed: cycle ? 0.5 : 1 });
+    t.queue.push({ face: f, at: at, speed: cycle ? 0.55 : 1 });
     this._wake();
   };
 
@@ -360,23 +360,31 @@
 
   FlapBoard.prototype.leave = function () { this.lastHover = null; };
 
-  /* Random dominoes running on their own. */
+  /* Dominoes running on their own. `pick` may return a list of tiles to
+     reveal in order (a whole word, say); otherwise a short chain runs from a
+     random tile, stopping at tiles `skip` protects. */
   FlapBoard.prototype.idle = function (opt) {
     var self = this;
     opt = Object.assign({ every: [700, 1700], chain: [2, 5], hold: [700, 1600], step: 90 }, opt || {});
     this.stopIdle();
     function tick() {
       if (self.visible && self.tiles.length && !self.paused) {
-        var t = self.tiles[(Math.random() * self.tiles.length) | 0];
-        if (opt.skip && opt.skip(t)) { self.idleTimer = setTimeout(tick, rnd(opt.every[0], opt.every[1]) * 0.5); return; }
-        var dirs = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1]];
-        var d = dirs[(Math.random() * dirs.length) | 0];
-        var n = Math.round(rnd(opt.chain[0], opt.chain[1]));
         var hold = rnd(opt.hold[0], opt.hold[1]);
-        for (var k = 0; k < n; k++) {
-          var nt = self.at(t.r + d[0] * k, t.c + d[1] * k);
-          if (!nt || (opt.skip && opt.skip(nt))) break;
-          self.poke(nt, k * opt.step, hold);
+        var seq = opt.pick ? opt.pick() : null;
+        if (seq && seq.length) {
+          for (var j = 0; j < seq.length; j++) self.poke(seq[j], j * opt.step, hold + 500);
+        } else {
+          var t = self.tiles[(Math.random() * self.tiles.length) | 0];
+          if (!(opt.skip && opt.skip(t))) {
+            var dirs = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1]];
+            var d = dirs[(Math.random() * dirs.length) | 0];
+            var n = Math.round(rnd(opt.chain[0], opt.chain[1]));
+            for (var k = 0; k < n; k++) {
+              var nt = self.at(t.r + d[0] * k, t.c + d[1] * k);
+              if (!nt || (opt.skip && opt.skip(nt))) break;
+              self.poke(nt, k * opt.step, hold);
+            }
+          }
         }
       }
       self.idleTimer = setTimeout(tick, rnd(opt.every[0], opt.every[1]));
@@ -424,7 +432,7 @@
       if (t.anim && T >= t.anim.t0 + t.anim.dur) { t.cur = t.anim.to; t.anim = null; touched = true; }
       if (!t.anim && t.queue.length && t.queue[0].at <= T) {
         var q = t.queue.shift();
-        if (q.face !== t.cur) { t.anim = { to: q.face, t0: T, dur: dur * q.speed }; touched = true; started++; }
+        if (q.face !== t.cur) { t.anim = { to: q.face, t0: T, dur: q.ms || dur * q.speed }; touched = true; started++; }
       }
       if (!t.anim && !t.queue.length && t.returnAt && T >= t.returnAt) {
         t.returnAt = 0;
@@ -607,6 +615,7 @@
 
   FlapBoard.GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
   FlapBoard.reduced = !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  FlapBoard.STEP_MS = 46;               // one card of the drum rolling past
   FlapBoard.DRUM = (' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-/:@&\u2019').split('');
 
   /* Shared print grain for cards: one small noise tile, made once. */

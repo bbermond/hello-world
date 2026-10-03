@@ -51,7 +51,7 @@
   Cell.prototype._next = function () {
     var self = this;
     var q = this.queue.shift();
-    if (!q) { this.busy = false; return; }
+    if (!q) { this.busy = false; this.node.classList.remove('is-flipping'); return; }
     this.busy = true;
     if (q.ch === this.ch) { this._next(); return; }
     var go = function () {
@@ -69,7 +69,6 @@
         self.b.textContent = to;
         self.f.textContent = to;
         self.ch = to;
-        self.node.classList.remove('is-flipping');
         self._next();
       };
     };
@@ -82,6 +81,7 @@
     this.text = node.textContent;
     node.textContent = '';
     node.classList.add('flaptext');
+    if (this.o.rest === 'text') node.classList.add('flaptext--rest');
     // assistive tech reads this copy; the animated cells are aria-hidden
     var sr = el('span', 'sr-only', this.text);
     node.appendChild(sr);
@@ -103,7 +103,7 @@
       var cell = this.cells[i];
       if (reduce) { cell.queue.length = 0; cell.ch = ch; cell.a.textContent = cell.b.textContent = cell.f.textContent = cell.k.textContent = ch; continue; }
       cell.queue.length = 0;
-      var d = (opt.delay || 0) + i * stagger;
+      var d = (opt.delay || 0) + (opt.order === 'rtl' ? this.cells.length - 1 - i : i) * stagger;
       for (var k = 0; k < (opt.cycle || 0); k++) {
         cell.to(this._rand(i < this.text.length ? this.text[i] : cell.ch, i), dur * 0.42, k === 0 ? d : 0);
         d = 0;
@@ -128,6 +128,29 @@
     }
   };
 
+  /* Drum roll: every letter steps through the `steps` letters before it,
+     in alphabetical order, and lands back on itself. */
+  var ORDER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', DIGITS = '0123456789';
+  FlapText.prototype.roll = function (opt) {
+    opt = opt || {};
+    if (reduce) return;
+    var dur = opt.duration || this.o.duration;
+    var stagger = opt.stagger == null ? this.o.stagger : opt.stagger;
+    var steps = opt.steps || 3;
+    for (var i = 0; i < this.cells.length; i++) {
+      var cell = this.cells[i], ch = this.text[i];
+      if (cell.busy) continue;
+      var up = ch.toUpperCase(), set = ORDER.indexOf(up) >= 0 ? ORDER : DIGITS.indexOf(ch) >= 0 ? DIGITS : null;
+      if (!set) continue;
+      var lower = ch !== up, at = set.indexOf(up), d = (opt.delay || 0) + i * stagger;
+      for (var k = steps; k >= 1; k--) {
+        var g = set[(at - k + set.length) % set.length];
+        cell.to(lower ? g.toLowerCase() : g, dur * 0.3, k === steps ? d : 0);
+      }
+      cell.to(ch, dur * 0.6, 0);
+    }
+  };
+
   /* Start blank and drop every letter into place. */
   FlapText.prototype.intro = function (opt) {
     opt = opt || {};
@@ -136,6 +159,8 @@
       var cell = this.cells[i];
       cell.ch = ' ';
       cell.a.textContent = cell.b.textContent = cell.f.textContent = cell.k.textContent = ' ';
+      // in rest-text mode the real glyph would show until the cell's turn
+      cell.node.classList.add('is-flipping');
     }
     this.set(this.text, opt);
   };

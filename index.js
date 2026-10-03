@@ -23,7 +23,7 @@
     var ART = {
         art1: { w: 1472, h: 1472, figure: [300, 109, 979, 1101] },
         art2: { w: 1472, h: 1472, figure: [375, 250, 631, 839] },
-        art3: { w: 1472, h: 1472, figure: [175, 238, 733, 1129] },
+        art3: { w: 1472, h: 1472, figure: [177, 238, 753, 1132] },
         art4: { w: 1920, h: 2400, figure: [0, 704, 1722, 1696], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
     };
 
@@ -31,7 +31,7 @@
     var C = {};
     function readPalette() {
         var cs = getComputedStyle(root);
-        ['paper', 'paper-2', 'ink', 'card', 'card-ink', 'hole', 'red', 'green', 'gold', 'olive', 'oxblood', 'ochre', 'forest', 'orange', 'teal', 'teal-ink']
+        ['paper', 'paper-2', 'ink', 'card', 'card-ink', 'red', 'green', 'gold', 'olive', 'oxblood', 'ochre', 'forest', 'orange', 'teal', 'teal-ink']
             .forEach(function (k) { C[k] = cs.getPropertyValue('--' + k).trim(); });
     }
     readPalette();
@@ -128,8 +128,8 @@
        column is one strip with a single motif repeating down it, offset from
        its neighbours: three motifs, plus plain black and olive strips. */
     var STRIPS = ['warp', 'black', 'weft', 'olive', 'lozenge', 'black', 'weft', 'warp'];
-    function weave(kind, alt) {
-        var id = 'kente-' + kind + (alt ? 1 : 0) + C.card + C.gold;
+    function weave(kind, alt, dim) {
+        var id = 'kente-' + kind + (alt ? 1 : 0) + (dim ? 'd' : '') + C.card + C.gold;
         return F.tex(id, function (x, w, h) {
             var g = C.gold, gr = C.green, r = C.red, k = C.card, o = C.olive;
             var m = Math.max(1, Math.round(w / 48));            // 1px of misregistration
@@ -151,17 +151,60 @@
                 x.fillStyle = o; x.fillRect(0, 0, w, h);
             }
             FlapBoard.texture(x, w, h, 0.6);
+            if (dim) { x.fillStyle = 'rgba(0,0,0,.16)'; x.fillRect(0, 0, w, h); }
         });
     }
-    function filler(t, salt) {
+    function hash(t, salt) {
+        var h = (t.r * 374761393 + t.c * 668265263 + (salt || 0) * 1442695041) | 0;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return (h ^ (h >>> 16)) >>> 0;
+    }
+    /* `sparse`: around a message only part of the weave stays, dimmed, so
+       the words read first */
+    function filler(t, salt, sparse) {
         var kind = STRIPS[(t.c + (salt || 0)) % STRIPS.length];
-        if (kind === 'black') return F.fill(C.card);
+        if (kind === 'black') return card(' ');
         // the motif repeats every other row, offset by column
         var on = (t.r + t.c + (salt || 0)) % 2 === 0;
-        if (!on && kind !== 'olive') return F.fill(kind === 'warp' ? C.card : C.card);
-        return weave(kind, ((t.r >> 1) + t.c) % 2 === 1);
+        if (!on && kind !== 'olive') return card(' ');
+        if (sparse && hash(t, salt) % 100 >= 62) return card(' ');
+        return weave(kind, ((t.r >> 1) + t.c) % 2 === 1, sparse);
     }
     function card(ch) { return F.char(ch, C.card, C['card-ink']); }
+    function isLetter(f) { return !!f && f.k === 'char' && f.ch !== ' '; }
+
+    /* A tile of a message board: the letter, a one-tile margin of plain
+       cards around the words, then the thinned weave. */
+    function msgFace(map, t, salt) {
+        var ch = map[t.r + ':' + t.c];
+        if (ch) return card(ch);
+        for (var dr = -1; dr <= 1; dr++) {
+            for (var dc = -1; dc <= 1; dc++) {
+                if (map[(t.r + dr) + ':' + (t.c + dc)]) return card(' ');
+            }
+        }
+        return filler(t, salt, true);
+    }
+
+    /* The words of a laid-out message, each as a list of [row, col]. */
+    function wordsOf(map) {
+        var cells = Object.keys(map).map(function (k) { var q = k.split(':'); return [+q[0], +q[1]]; })
+            .sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+        var words = [], cur = null;
+        cells.forEach(function (q) {
+            if (map[q[0] + ':' + q[1]] === ' ') { cur = null; return; }
+            if (cur && cur.r === q[0] && cur.c === q[1] - 1) { cur.cells.push(q); cur.c = q[1]; }
+            else { cur = { r: q[0], c: q[1], cells: [q] }; words.push(cur); }
+        });
+        return words.map(function (w) { return w.cells; });
+    }
+
+    /* Idle reveal of one whole hidden word, left to right. */
+    function wordPick(board, words) {
+        if (!words.length) return null;
+        var w = words[(Math.random() * words.length) | 0];
+        return w.map(function (q) { return board.at(q[0], q[1]); }).filter(Boolean);
+    }
 
     /* Lay a message out on a board region: greedy word wrap, centred block.
        Words may carry soft hyphens (­) marking where they can break. */
@@ -221,7 +264,10 @@
             var t = board.tileAt(e.clientX - r.left, e.clientY - r.top);
             if (t) ripple(board, t, opt.ripple || 2.2, 70, 1500);
         });
-        if (!reduce && opt.idle !== false) board.idle(Object.assign({ skip: function (t) { return t.home && t.home.k === 'char' && t.home.ch !== ' '; } }, opt.idle));
+        // random chains never touch letters, shown or hidden, so they can't
+        // spell half a word; whole words are revealed through `pick`
+        var skip = function (t) { return isLetter(t.home) || isLetter(board.o.alt && board.o.alt(t)); };
+        if (!reduce && opt.idle !== false) board.idle(Object.assign({ skip: skip }, opt.idle));
         board.visible = false;
         new IntersectionObserver(function (es) { board.visible = es[0].isIntersecting; }, { rootMargin: '100px' }).observe(canvas);
         boards.push(board);
@@ -257,6 +303,7 @@
         if (!src || !src.naturalWidth) return null;
         var c = silhouette(src, 'rgb(24,16,8)', 16);
         c.className = 'stage__shadow';
+        c.style.width = c.style.height = '0px';      // sized by register(); never at its bitmap size
         fig.parentNode.insertBefore(c, fig);
         fig._shadow = c;
         return c;
@@ -350,7 +397,7 @@
         var canvas = $('canvas', stage), fig = $('.stage__figure', stage);
         var accents = $$('.acc', section);
         var box = ART.art1.figure;
-        var msg = {}, state = 'img', ready = false;
+        var msg = {}, words = [], state = 'img', ready = false, stageTop = 0;
         var mouse = { x: 0, y: 0, tx: 0, ty: 0 };
         // same breakpoint as the stacked hero in main.css
         var stacked = win.matchMedia('(max-width: 767px), (max-width: 1100px) and (orientation: portrait)');
@@ -358,13 +405,18 @@
         var board = new FlapBoard(canvas, {
             cols: 8, aspect: 1.28, gap: 3, radius: 2, split: 1, duration: 620,
             face: function (t) { return reduce ? F.img('art1') : filler(t, 7); },
-            alt: function (t) { return msg[t.r + ':' + t.c] ? card(msg[t.r + ':' + t.c]) : filler(t, 1); }
+            // what a flipped tile shows: the message under the image, the image under the message
+            alt: function (t) { return state === 'msg' ? F.img('art1') : messageFace(t); }
         });
+        function messageFace(t) { return msgFace(msg, t, 1); }
         board.on('layout', function () {
             register(fig, board, 'art1', box);
             var r0 = Math.max(0, board.rows - 4);
             msg = layout('HELLO I\u2019M BERMOND', { c0: 0, c1: board.cols, r0: r0, r1: board.rows });
+            words = wordsOf(msg);
+            measure();
         });
+        function measure() { stageTop = stage.getBoundingClientRect().top + win.scrollY; }
 
         function init(img, figImg) {
             shadowFor(fig, figImg);
@@ -376,11 +428,12 @@
 
         /* opening: the board assembles the artwork tile by tile, then the
            cut-out settles into its silhouette */
+        var idleOpt = { pick: function () { return state === 'img' && Math.random() < 0.45 ? wordPick(board, words) : null; } };
         function intro(delay) {
-            if (reduce) { interactive(board, canvas, { hover: { hold: 1500, chain: 2 } }); return; }
+            if (reduce) { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); return; }
             board.wave(function () { return F.img('art1'); }, { origin: [0, board.cols], speed: 62, jitter: 90, cycle: 2, delay: delay || 0 });
             setTimeout(function () { stage.classList.add('is-ready'); }, (delay || 0) + 1250);
-            setTimeout(function () { interactive(board, canvas, { hover: { hold: 1500, chain: 2 } }); }, (delay || 0) + 1900);
+            setTimeout(function () { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); }, (delay || 0) + 1900);
         }
 
         section.addEventListener('pointermove', function (e) {
@@ -397,12 +450,25 @@
             mouse.x = lerp(mouse.x, mouse.tx, 0.07);
             mouse.y = lerp(mouse.y, mouse.ty, 0.07);
             var mx = reduce ? 0 : mouse.x, my = reduce ? 0 : mouse.y;
-            var lift = reduce ? 0 : sstep(0, 0.55, p);
-            // the cut-out leaves its silhouette behind and comes toward you
-            // closer things move faster: the cut-out out-scrolls its board and
-            // clears the rows where the message lands
-            var rise = reduce ? 0 : p * board.cssH * 0.62;
-            pose(fig, stage, mx * 9 - lift * 18, my * 6 - lift * 30 - rise, 1 + lift * 0.07, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 30, lift);
+            // where the board flips to its message: side by side, a quarter of
+            // the way down the hero; stacked, once the board's top has passed
+            // a fifth of the screen (so the whole board is in view)
+            var T = stacked.matches ? stageTop - vh * 0.2 : h * 0.24;
+            var want = scrollY > T ? 'msg' : scrollY < T - 50 ? 'img' : state;
+            if (want !== state) {
+                state = want;
+                section.classList.toggle('is-msg', state === 'msg');
+                var o = [(fig.offsetTop + fig.offsetHeight * 0.3) / (board.cssH / board.rows), (fig.offsetLeft + fig.offsetWidth * 0.55) / (board.cssW / board.cols)];
+                if (state === 'msg') board.wave(messageFace, { origin: o, speed: 70, jitter: 60, cycle: 2 });
+                else board.wave(function () { return F.img('art1'); }, { origin: [board.rows, 0], speed: 55, jitter: 40 });
+            }
+            var lift = reduce ? 0 : sstep(0, 0.5, p);
+            // the cut-out lifts off its imprint a little, then — once the
+            // message is on its way — out-scrolls the board (closer things move
+            // faster) and uncovers the rows where the words land
+            var after = reduce ? 0 : clamp((scrollY - T + vh * 0.05) / (vh * 0.36), 0, 1.6);
+            var rise = sstep(0, 1, Math.min(after, 1)) * board.cssH * 0.58 + Math.max(0, after - 1) * board.cssH * 0.3;
+            pose(fig, stage, mx * 9 - lift * 16, my * 6 - lift * 22 - rise, 1 + lift * 0.06, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 28, lift);
             // side by side, the board lags the scroll a little; stacked, content sits under it
             var drift = stacked.matches ? 0 : p * 60;
             canvas.style.transform = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + drift).toFixed(2) + 'px,0)';
@@ -410,18 +476,10 @@
                 var d = accents[i]._d || (accents[i]._d = parseFloat(accents[i].getAttribute('data-depth')) || 0.5);
                 accents[i].style.transform = 'translate3d(' + (mx * d * 14).toFixed(2) + 'px,' + (my * d * 9 - p * d * 120).toFixed(2) + 'px,0)';
             }
-            // scrolling past a third of the hero flips the board to its message
-            var want = p > 0.3 ? 'msg' : p < 0.2 ? 'img' : state;
-            if (want !== state) {
-                state = want;
-                var o = [ (fig.offsetTop + fig.offsetHeight * 0.3) / (board.cssH / board.rows), (fig.offsetLeft + fig.offsetWidth * 0.55) / (board.cssW / board.cols) ];
-                if (state === 'msg') board.wave(function (t) { return board.o.alt(t); }, { origin: o, speed: 70, jitter: 60, cycle: 2 });
-                else board.wave(function () { return F.img('art1'); }, { origin: [board.rows, 0], speed: 55, jitter: 40 });
-            }
         }
         ticks.push(tick);
 
-        return { board: board, init: init, intro: intro, section: section };
+        return { board: board, init: init, intro: intro, section: section, measure: measure };
     })();
 
     /* ======================================================================
@@ -435,7 +493,7 @@
         var box = ART.art3.figure;
         var range = { top: 0, height: 1 };
         var stageIdx = -1, ready = false, region = null, fitsBeside = true;
-        var maps = [{}, {}];
+        var maps = [{}, {}], words = [];
         var MSG = ['EVERY IMAGE HAS A STORY BENEATH', 'DESIGN THAT FLIPS THE SCRIPT'];
         var stepText = null;
 
@@ -447,8 +505,7 @@
 
         function faceFor(i, t) {
             if (i === 0 || i === 3) return F.img('art3');
-            var ch = maps[i - 1][t.r + ':' + t.c];
-            return ch ? card(ch) : filler(t, i + 2);
+            return msgFace(maps[i - 1], t, i + 2);
         }
 
         board.on('layout', function () {
@@ -457,6 +514,7 @@
             fitsBeside = !!region;
             var reg = region || { c0: 0, c1: board.cols, r0: 0, r1: board.rows };
             maps = MSG.map(function (m) { return layout(m, reg); });
+            words = wordsOf(maps[0]);
             if (stageIdx > 0) { var s = stageIdx; stageIdx = -1; apply(s, true); }
         });
 
@@ -471,7 +529,14 @@
             board.setSource('art3', plate(img, figImg, box, 'art3'), { fx: 0.12, fy: 0.16 });
             board.resize();
             stage.classList.add('is-ready');
-            interactive(board, canvas, { hover: { hold: 1200, chain: 2 }, idle: { every: [900, 2000], chain: [2, 4], hold: [700, 1300] } });
+            interactive(board, canvas, {
+                hover: { hold: 1200, chain: 2 },
+                idle: {
+                    every: [900, 2000], chain: [2, 4], hold: [700, 1300],
+                    // while the image shows, now and then a whole word of the story surfaces
+                    pick: function () { return (stageIdx <= 0 || stageIdx === 3) && Math.random() < 0.5 ? wordPick(board, words) : null; }
+                }
+            });
             stepText = stepEl ? new FlapText(stepEl, { duration: 420 }) : null;
             ready = true;
             measure();
@@ -553,11 +618,11 @@
             if (fine) board.resize(canvas.clientWidth || 280, canvas.clientHeight || 350);
             items.forEach(function (it) {
                 var row = $('[data-flap-row]', it);
-                var ft = row ? new FlapText(row, { duration: 380, stagger: 22 }) : null;
+                var ft = row ? new FlapText(row, { duration: 380, stagger: 22, rest: 'text' }) : null;
                 it.addEventListener('mouseenter', function () {
                     if (!fine) return;
                     show(it);
-                    if (ft) ft.scramble({ cycle: 1, stagger: 18 });
+                    if (ft) ft.roll({ steps: 2, stagger: 18 });
                 });
                 // mobile: a small board per row that flips to its artwork in view
                 var th = $('.work__thumb', it);
@@ -632,7 +697,11 @@
         var geo = null;
         // where each label points: a spot on the left edge of its layer, as
         // fractions of the artboard from its centre
-        var ANCHOR = [[-0.5, -0.41], [-0.5, -0.17], [-0.5, 0.2], [-0.5, -0.36]];
+        // visible spots on each layer, as fractions of the artboard from its
+        // centre: the field's top corner, the sun's rim, the shirt's shoulder, a
+        // leaf tip. The stack turns so the deeper layers slide left, which
+        // keeps the left side of every layer in view
+        var ANCHOR = [[-0.5, -0.47], [-0.42, -0.054], [-0.315, 0.417], [-0.052, -0.32]];
         var LZ = $$('.layer', rig).map(function (l) { return parseFloat(l.getAttribute('data-z')) || 0; });
         function measureGeo() {
             var sr = scene.getBoundingClientRect(), lr = labelsBox.getBoundingClientRect();
@@ -755,12 +824,14 @@
             var turn = reduce ? 0.5 : sstep(0.05, 0.55, p);
             rig.style.setProperty('--explode', e.toFixed(4));
             tilt.x = lerp(tilt.x, reduce ? 0 : tilt.tx, 0.06); tilt.y = lerp(tilt.y, reduce ? 0 : tilt.ty, 0.06);
-            var ry = lerp(0, -38, turn) + tilt.x * (4 + 8 * e), rx = lerp(0, 12, turn) - tilt.y * (3 + 6 * e), rz = lerp(0, -2, turn), rs = lerp(1, 0.8, e);
+            var ry = lerp(0, 34, turn) + tilt.x * (4 + 8 * e), rx = lerp(0, 12, turn) - tilt.y * (3 + 6 * e), rz = lerp(0, 2, turn), rs = lerp(1, 0.8, e);
             rig.style.setProperty('--ry', ry.toFixed(2) + 'deg');
             rig.style.setProperty('--rx', rx.toFixed(2) + 'deg');
             rig.style.setProperty('--rz', rz.toFixed(2) + 'deg');
             rig.style.setProperty('--rs', rs.toFixed(4));
             section.style.setProperty('--e', e.toFixed(4));
+            var ind = $('.indicator');
+            if (ind) ind.classList.toggle('on-deep', e > 0.4 || currentTheme() === 'dark');
             // labels stay flat to the screen and track their layer's projected edge
             if (!geo) measureGeo();
             if (geo.w) {
@@ -860,38 +931,69 @@
        ====================================================================== */
     var services = $$('.service').map(function (el, idx) {
         var num = el.getAttribute('data-num'), word = el.getAttribute('data-word');
-        var nb = new FlapBoard($('.service__num', el), {
-            cols: 2, rows: 1, gap: 3, radius: 3, split: 1, duration: 560, glyph: 0.64,
-            face: function () { return card(reduce ? num[0] : '0'); }
+        var W = 6;                                       // word tiles after the numeral and the diamond
+        var diamond = F.tex('diamond' + C.card + C.gold, function (x, w, h) {
+            x.fillStyle = C.card; x.fillRect(0, 0, w, h);
+            FlapBoard.texture(x, w, h, 0.55);
+            x.fillStyle = C.gold;
+            x.beginPath(); x.moveTo(w / 2, h * .34); x.lineTo(w * .7, h / 2); x.lineTo(w / 2, h * .66); x.lineTo(w * .3, h / 2); x.closePath(); x.fill();
         });
-        var sb = new FlapBoard($('.service__strip', el), {
-            cols: 6, rows: 1, gap: 2, radius: 1.5, split: 1, duration: 460, glyph: 0.62,
-            face: function (t) { return filler({ r: 0, c: t.c + idx * 2 }, 0); }
+        function weaveAt(c) { return filler({ r: (c + idx) % 2, c: c + idx * 3 }, 0); }
+        // one board per service: numeral · diamond · a woven strip that spells the service on hover
+        var board = new FlapBoard($('.service__board', el), {
+            cols: 3 + W, rows: 1, gap: 3, radius: 2, split: 1, duration: 520, glyph: 0.62,
+            face: function (t) { return t.c < 2 ? card(reduce ? num[t.c] : '0') : t.c === 2 ? diamond : weaveAt(t.c); }
         });
-        function showNum(cycle) { nb.wave(function (t) { return card(num[t.c]); }, { origin: [0, 0], speed: 90, cycle: cycle }); }
+        function wordFace(t) { var w = word; while (w.length < W) w += ' '; return card(w[t.c - 3]); }
         el.addEventListener('mouseenter', function () {
             if (reduce) return;
-            sb.wave(function (t) { return card(word[t.c] || ' '); }, { origin: [0, 0], speed: 55, cycle: 2 });
-            nb.tiles.forEach(function (t, i) {
-                for (var k = 1; k <= 3; k++) nb.flip(t, card(String((+num[i] + k) % 10)), i * 60, 0.22);
-                nb.flip(t, card(num[i]), 0, 0.6);
+            board.wave(function (t) { return t.c >= 3 ? wordFace(t) : null; }, { origin: [0, 3], speed: 55, cycle: 2 });
+            // the numeral rolls a few cards and lands back on itself
+            [0, 1].forEach(function (i) {
+                var t = board.tiles[i];
+                for (var k = 1; k <= 3; k++) board.flip(t, card(String((+num[i] + k) % 10)), i * 60, 0.2);
+                board.flip(t, card(num[i]), 0, 0.6);
             });
         });
         el.addEventListener('mouseleave', function () {
             if (reduce) return;
-            sb.wave(function (t) { return filler({ r: 0, c: t.c + idx * 2 }, 0); }, { origin: [0, 5], speed: 45 });
+            board.wave(function (t) { return t.c >= 3 ? weaveAt(t.c) : null; }, { origin: [0, 3 + W], speed: 45 });
         });
         return {
             init: function () {
-                nb.resize(); sb.resize();
-                boards.push(nb, sb);
-                if (reduce) { nb.setAll(function (t) { return card(num[t.c]); }); return; }
+                board.resize();
+                boards.push(board);
+                if (reduce) return;
                 new IntersectionObserver(function (es, ob) {
-                    if (es[0].isIntersecting) { showNum(3); ob.disconnect(); }
+                    if (!es[0].isIntersecting) return;
+                    ob.disconnect();
+                    board.wave(function (t) { return t.c < 2 ? card(num[t.c]) : null; }, { origin: [0, 0], speed: 90, cycle: 3 });
                 }, { threshold: 0.9 }).observe(el);
             }
         };
     });
+
+    /* weeks, kick-off to launch: two big flaps that count up when in view */
+    var weeks = (function () {
+        var canvas = $('.weeks__board');
+        if (!canvas) return { init: function () { } };
+        var board = new FlapBoard(canvas, {
+            cols: 2, rows: 1, gap: 3, radius: 3, split: 2, duration: 600, glyph: 0.62,
+            face: function (t) { return card(reduce ? '04'[t.c] : '0'); }
+        });
+        return {
+            init: function () {
+                board.resize();
+                boards.push(board);
+                if (reduce) return;
+                new IntersectionObserver(function (es, ob) {
+                    if (!es[0].isIntersecting) return;
+                    ob.disconnect();
+                    board.wave(function (t) { return card('04'[t.c]); }, { origin: [0, 0], speed: 120, cycle: 2 });
+                }, { threshold: 1 }).observe(canvas);
+            }
+        };
+    })();
 
     /* ======================================================================
        Process timetable — a departures board that follows the open step
@@ -920,6 +1022,12 @@
         function render(instant) {
             board.wave(function (t) { return faceAt(t); }, { origin: [active, 14], speed: instant ? 0 : 40, cycle: instant || reduce ? 0 : 2 });
         }
+        canvas.addEventListener('click', function (e) {
+            var r = canvas.getBoundingClientRect();
+            var row = clamp(Math.floor((e.clientY - r.top) / (r.height / board.rows)), 0, board.rows - 1);
+            var btn = $$('.step button')[row];
+            if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+        });
         return {
             init: function () { board.resize(); boards.push(board); },
             set: function (i) { if (i === active) return; active = i; render(false); },
@@ -957,16 +1065,16 @@
     /* ======================================================================
        Typography: headline, hover flips, numbers, clock, indicator
        ====================================================================== */
-    var titles = $$('[data-flap-title]').map(function (el) { return new FlapText(el, { duration: 560, stagger: 55 }); });
+    var titles = $$('[data-flap-title]').map(function (el) { return new FlapText(el, { duration: 560, stagger: 55, rest: 'text' }); });
     $('.hero__title').addEventListener('mouseenter', function () {
-        titles.forEach(function (t, i) { t.scramble({ cycle: 1, stagger: 34, delay: i * 120 }); });
+        titles.forEach(function (t, i) { t.roll({ steps: 3, stagger: 34, delay: i * 120 }); });
     });
 
     $$('[data-flap-hover]').forEach(function (el) {
-        var ft = new FlapText(el, { duration: 300, stagger: 18 });
+        var ft = new FlapText(el, { duration: 300, stagger: 18, rest: 'text' });
         var host = el.closest('a, button') || el;
-        host.addEventListener('mouseenter', function () { ft.scramble({ cycle: 1 }); });
-        host.addEventListener('focus', function () { ft.scramble({ cycle: 1 }); });
+        host.addEventListener('mouseenter', function () { ft.roll({ steps: 2 }); });
+        host.addEventListener('focus', function () { ft.roll({ steps: 2 }); });
     });
 
     $$('[data-flap-num]').forEach(function (el) {
@@ -992,7 +1100,7 @@
         es.forEach(function (e) {
             if (!e.isIntersecting) return;
             var idx = sections.indexOf(e.target);
-            indNum.set(pad(idx + 1, 2), { stagger: 40 });
+            indNum.set(pad(idx, 2), { stagger: 40 });
             indName.textContent = e.target.getAttribute('data-section');
             indicator.classList.toggle('is-teal', e.target.id === 'layers');
             var id = '#' + e.target.id;
@@ -1241,7 +1349,7 @@
         vw = win.innerWidth; vh = win.innerHeight;
         wall.resize(); contact.resize();
         boards.forEach(function (b) { if (b.dw) b.resize(); });
-        wall.measure(); layers.measure();
+        wall.measure(); layers.measure(); hero.measure();
     }
     win.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(onResize, 160); });
 
@@ -1272,7 +1380,7 @@
         var real = done / jobs.length;
         var timeP = clamp((performance.now() - t0) / MIN, 0, 1);
         var target = Math.floor(Math.min(real, timeP) * 100);
-        if (target > shown) { shown = Math.min(100, shown + Math.max(1, Math.round((target - shown) * 0.5))); counter.set(pad(shown, 3), { stagger: 0 }); }
+        if (target > shown) { shown = Math.min(100, shown + Math.max(1, Math.round((target - shown) * 0.5))); counter.set(pad(shown, 3), { stagger: 40, order: 'rtl' }); }
         if (shown >= 100) clearInterval(countTimer);
     }, 110);
 
@@ -1286,6 +1394,7 @@
         mark.init(res[1][0]);
         services.forEach(function (sv) { sv.init(); });
         timetable.init();
+        weeks.init();
         requestAnimationFrame(loop);
         // below the fold: the wall and contact boards stream in behind the loader
         Promise.all([art('art3'), figureOf('art3')]).then(function (r) { loaded.art3 = r; wall.init(r[0], r[1]); });
@@ -1293,7 +1402,7 @@
         var wait = Math.max(0, MIN + 250 - (performance.now() - t0));
         setTimeout(function () {
             clearInterval(countTimer);
-            counter.set('100', { stagger: 0 });
+            counter.set('100', { stagger: 60, order: 'rtl' });
             setTimeout(reveal, reduce ? 0 : 420);
         }, wait);
     });
