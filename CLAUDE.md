@@ -5,6 +5,7 @@
 2. A curated master profile (`docs/profile.md`).
 3. A tiered job pipeline (`jobs/`): fast yes → near target → optimal.
 4. A team of agents (`.claude/agents/`), one per role.
+5. An immersive "Harmattan" scroll story (`docs/art-direction/dry-season-brief.md`), built with Codex.
 
 ## Agent team
 | Agent | Owns |
@@ -15,6 +16,7 @@
 | `job-scout` | `jobs/jobs.json`, `jobs/README.md` |
 | `application-tailor` | `applications/<company>-<role>.md` packages |
 | `outreach-writer` | Outreach drafts inside application packages |
+| `creative-director` | `docs/art-direction/` brief, Codex/image prompts, design QA of the story site |
 
 Typical flow: profile-curator → portfolio-curator → site-builder; job-scout → application-tailor → outreach-writer.
 
