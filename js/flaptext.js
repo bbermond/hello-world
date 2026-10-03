@@ -105,7 +105,7 @@
       cell.queue.length = 0;
       var d = (opt.delay || 0) + i * stagger;
       for (var k = 0; k < (opt.cycle || 0); k++) {
-        cell.to(this._rand(cell.ch), dur * 0.42, k === 0 ? d : 0);
+        cell.to(this._rand(i < this.text.length ? this.text[i] : cell.ch, i), dur * 0.42, k === 0 ? d : 0);
         d = 0;
       }
       cell.to(ch, opt.cycle ? dur * 0.7 : dur, d);
@@ -123,7 +123,7 @@
       var cell = this.cells[i];
       if (cell.busy || this.text[i] === ' ') continue;
       var d = (opt.delay || 0) + i * stagger;
-      for (var k = 0; k < cycles; k++) { cell.to(this._rand(this.text[i]), dur * 0.45, k === 0 ? d : 0); }
+      for (var k = 0; k < cycles; k++) { cell.to(this._rand(this.text[i], i), dur * 0.45, k === 0 ? d : 0); }
       cell.to(this.text[i], dur * 0.7, 0);
     }
   };
@@ -140,8 +140,31 @@
     this.set(this.text, opt);
   };
 
-  FlapText.prototype._rand = function (avoid) {
-    var g = this.o.glyphs, c;
+  var measurer = null;
+  FlapText.prototype._pools = function () {
+    if (this.pools) return this.pools;
+    var cs = getComputedStyle(this.node);
+    measurer = measurer || document.createElement('canvas').getContext('2d');
+    measurer.font = cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    var ls = parseFloat(cs.letterSpacing) || 0;
+    var base = this.o.glyphs, lower = base.toLowerCase(), self = this;
+    function width(c) { return measurer.measureText(c).width + ls; }
+    var cache = {};
+    this.pools = this.cells.map(function (cell, i) {
+      var ch = self.text[i];
+      if (cache[ch]) return cache[ch];
+      var isLower = ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+      var set = (isLower ? lower : base).split('');
+      var w = width(ch);
+      var pool = set.filter(function (c) { var cw = width(c); return c !== ch && cw <= w * 1.08 && cw >= w * 0.7; });
+      if (pool.length < 3) pool = set.slice().sort(function (a, b) { return Math.abs(width(a) - w) - Math.abs(width(b) - w); }).slice(0, 4).filter(function (c) { return c !== ch; });
+      return (cache[ch] = pool);
+    });
+    return this.pools;
+  };
+
+  FlapText.prototype._rand = function (avoid, i) {
+    var g = (i != null && this._pools()[i]) || this.o.glyphs.split(''), c;
     do { c = g[(Math.random() * g.length) | 0]; } while (c === avoid && g.length > 1);
     var orig = avoid || '';
     return orig === orig.toLowerCase() && orig !== orig.toUpperCase() ? c.toLowerCase() : c;

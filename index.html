@@ -54,12 +54,24 @@
                 <span class="sound-toggle__bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                 <span data-sound-label>Sound</span>
             </button>
+            <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="menu" data-menu-toggle>Menu</button>
             <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to dark theme">
                 <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" /><path d="M8 .8v2M8 13.2v2M.8 8h2M13.2 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M2.9 13.1l1.4-1.4M11.7 4.3l1.4-1.4" /></svg>
                 <span data-theme-label>Light</span>
             </button>
         </div>
     </header>
+
+    <nav class="menu" id="menu" aria-label="Menu" hidden>
+        <p class="menu__head mono"><span>Departures</span><span>Gate</span></p>
+        <ul class="menu__list">
+            <li><a href="#about"><span class="menu__word" data-menu-word>About</span><span class="menu__gate mono">01</span></a></li>
+            <li><a href="#work"><span class="menu__word" data-menu-word>Work</span><span class="menu__gate mono">02</span></a></li>
+            <li><a href="#process"><span class="menu__word" data-menu-word>Process</span><span class="menu__gate mono">03</span></a></li>
+            <li><a href="#contact"><span class="menu__word" data-menu-word>Contact</span><span class="menu__gate mono">04</span></a></li>
+        </ul>
+        <p class="menu__foot mono"><span data-clock-menu>Now boarding</span><a href="mailto:hello@example.com" data-email>Email</a></p>
+    </nav>
 
     <main id="main">
 
@@ -94,7 +106,7 @@
 
             <div class="hero__stage stage" data-stage="hero">
                 <canvas class="stage__board" aria-hidden="true"></canvas>
-                <img class="stage__figure" src="assets/img/art1-figure.webp" alt="" width="1005" height="1123" decoding="async" fetchpriority="high">
+                <img class="stage__figure" src="assets/img/art1-figure.webp" alt="" width="979" height="1101" decoding="async" fetchpriority="high">
                 <span class="mark mark--tl" aria-hidden="true"></span>
                 <span class="mark mark--br" aria-hidden="true"></span>
                 <p class="stage__tag mono" aria-hidden="true"><span>Fig. 01</span><span>Kente Signal</span></p>
@@ -121,7 +133,7 @@
                 </header>
                 <div class="wall__stage stage" data-stage="wall">
                     <canvas class="stage__board" aria-hidden="true"></canvas>
-                    <img class="stage__figure" src="assets/img/art3-figure.webp" alt="" width="741" height="1233" loading="lazy" decoding="async">
+                    <img class="stage__figure" src="assets/img/art3-figure.webp" alt="" width="733" height="1129" loading="lazy" decoding="async">
                 </div>
                 <p class="sr-only">Every image has a story underneath. Design that flips the script.</p>
                 <div class="wall__progress mono" aria-hidden="true"><span data-wall-step>01</span> / 03</div>
@@ -132,19 +144,31 @@
         <section class="services" id="services" data-section="Services">
             <h2 class="section-title" data-reveal>I can help you with ...</h2>
             <ol class="services__list">
-                <li class="service" data-reveal>
-                    <span class="service__num" data-flap-num>01</span>
-                    <h3>Design</h3>
+                <li class="service" data-reveal data-num="01" data-word="DESIGN">
+                    <div class="service__top" aria-hidden="true">
+                        <canvas class="service__num"></canvas>
+                        <canvas class="service__strip"></canvas>
+                    </div>
+                    <span class="service__rule" aria-hidden="true"></span>
+                    <h3><span class="sr-only">01. </span>Design</h3>
                     <p>Web designs that pull your audience in and create the experience they came for — and the one they remember.</p>
                 </li>
-                <li class="service" data-reveal>
-                    <span class="service__num" data-flap-num>02</span>
-                    <h3>Development</h3>
+                <li class="service" data-reveal data-num="02" data-word="BUILD">
+                    <div class="service__top" aria-hidden="true">
+                        <canvas class="service__num"></canvas>
+                        <canvas class="service__strip"></canvas>
+                    </div>
+                    <span class="service__rule" aria-hidden="true"></span>
+                    <h3><span class="sr-only">02. </span>Development</h3>
                     <p>Hand-built, fast and accessible front-ends that bring the visuals to life, down to the very last flip.</p>
                 </li>
-                <li class="service" data-reveal>
-                    <span class="service__num" data-flap-num>03</span>
-                    <h3>The Full Package</h3>
+                <li class="service" data-reveal data-num="03" data-word="ALL IN">
+                    <div class="service__top" aria-hidden="true">
+                        <canvas class="service__num"></canvas>
+                        <canvas class="service__strip"></canvas>
+                    </div>
+                    <span class="service__rule" aria-hidden="true"></span>
+                    <h3><span class="sr-only">03. </span>The Full Package</h3>
                     <p>Identity, design and development under one roof — nothing lost in translation, everything on brand.</p>
                 </li>
             </ol>
@@ -160,7 +184,7 @@
                 <li class="work__item" data-art="art1">
                     <div class="work__text">
                         <h3 class="work__name"><span data-flap-row>Kente Signal</span></h3>
-                        <p class="work__tags">Brand Identity, Web Design</p>
+                        <p class="work__tags" data-year="/26">Brand Identity, Web Design</p>
                     </div>
                     <span class="work__year">/26</span>
                     <canvas class="work__thumb" aria-hidden="true"></canvas>
@@ -168,7 +192,7 @@
                 <li class="work__item" data-art="art2">
                     <div class="work__text">
                         <h3 class="work__name"><span data-flap-row>Gold Dust Archive</span></h3>
-                        <p class="work__tags">Editorial Design, Webflow Development</p>
+                        <p class="work__tags" data-year="/25">Editorial Design, Webflow Development</p>
                     </div>
                     <span class="work__year">/25</span>
                     <canvas class="work__thumb" aria-hidden="true"></canvas>
@@ -176,7 +200,7 @@
                 <li class="work__item" data-art="art3">
                     <div class="work__text">
                         <h3 class="work__name"><span data-flap-row>Harmattan Radio</span></h3>
-                        <p class="work__tags">Web Design, Front-End Development</p>
+                        <p class="work__tags" data-year="/25">Web Design, Front-End Development</p>
                     </div>
                     <span class="work__year">/25</span>
                     <canvas class="work__thumb" aria-hidden="true"></canvas>
@@ -184,7 +208,7 @@
                 <li class="work__item" data-art="art4">
                     <div class="work__text">
                         <h3 class="work__name"><span data-flap-row>Zebra Sun</span></h3>
-                        <p class="work__tags">Art Direction, Motion</p>
+                        <p class="work__tags" data-year="/24">Art Direction, Motion</p>
                     </div>
                     <span class="work__year">/24</span>
                     <canvas class="work__thumb" aria-hidden="true"></canvas>
@@ -200,6 +224,7 @@
         <!-- 05 · layers (scroll-driven exploded collage) -->
         <section class="layers" id="layers" data-section="Layers" aria-labelledby="layers-title">
             <div class="layers__sticky">
+                <div class="layers__dim" aria-hidden="true"></div>
                 <div class="layers__copy">
                     <p class="mono">(04) Process, in pieces</p>
                     <h2 id="layers-title" class="layers__title">Every visual is a stack of decisions.</h2>
@@ -207,13 +232,22 @@
                 </div>
                 <div class="layers__scene" aria-hidden="true">
                     <div class="layers__rig">
-                        <div class="layer layer--field" data-z="-360"><span class="layer__label mono">01 — Field · #61B9BE</span></div>
-                        <div class="layer layer--sun" data-z="-170"><img src="assets/img/art4-sun.webp" alt="" loading="lazy" decoding="async"><span class="layer__label mono">02 — Sun · paper cut</span></div>
-                        <div class="layer layer--figure" data-z="40"><img src="assets/img/art4-figure.webp" alt="" loading="lazy" decoding="async"><span class="layer__label mono">03 — Portrait · halftone</span></div>
-                        <div class="layer layer--leaves" data-z="230"><img src="assets/img/art4-leaves.webp" alt="" loading="lazy" decoding="async"><span class="layer__label mono">04 — Foliage · botanical print</span></div>
+                        <div class="layer layer--field" data-z="-360"></div>
+                        <div class="layer layer--sun" data-z="-170"><img src="assets/img/art4-sun.webp" alt="" loading="lazy" decoding="async"></div>
+                        <div class="layer layer--figure" data-z="40"><img src="assets/img/art4-figure.webp" alt="" loading="lazy" decoding="async"></div>
+                        <div class="layer layer--leaves" data-z="230"><img src="assets/img/art4-leaves.webp" alt="" loading="lazy" decoding="async"></div>
                     </div>
                 </div>
-                <div class="layers__board"><canvas aria-hidden="true"></canvas></div>
+                <div class="layers__labels mono" aria-hidden="true">
+                    <span class="layers__label"><b>01</b> Field · #61B9BE</span>
+                    <span class="layers__label"><b>02</b> Sun · paper cut</span>
+                    <span class="layers__label"><b>03</b> Portrait · halftone</span>
+                    <span class="layers__label"><b>04</b> Foliage · botanical print</span>
+                </div>
+                <div class="layers__board" aria-hidden="true">
+                    <p class="layers__head mono"><span>Layer</span><span>Element</span><span>Depth</span></p>
+                    <canvas></canvas>
+                </div>
                 <ul class="sr-only">
                     <li>Layer 1: a teal field of colour.</li>
                     <li>Layer 2: an orange paper-cut sun.</li>
@@ -228,6 +262,10 @@
             <div class="process__intro" data-reveal>
                 <h2 class="section-title">My way of getting things done</h2>
                 <p>Fast and transparent: the path to a website that represents your brand in the best of light is about four weeks. One clear step at a time, so you always know where your project stands.</p>
+                <div class="timetable" aria-hidden="true">
+                    <p class="timetable__head mono"><span>Wk</span><span>Step</span><span>Status</span></p>
+                    <canvas></canvas>
+                </div>
             </div>
             <ol class="process__list">
                 <li class="step" data-reveal>
@@ -253,11 +291,16 @@
         <section class="contact" id="contact" data-section="Contact">
             <div class="contact__board"><canvas aria-hidden="true"></canvas><p class="sr-only">Now boarding: your next project.</p></div>
             <div class="contact__grid">
-                <h2 class="contact__title" data-reveal>Let’s talk about a project, collaboration or an idea you may have</h2>
-                <a class="pill pill--lg" href="mailto:hello@example.com" data-email data-magnetic><span>Drop me a line</span><i aria-hidden="true"></i></a>
+                <div class="contact__copy">
+                    <h2 class="contact__title" data-reveal>Let’s talk about a project, collaboration or an idea you may have</h2>
+                    <div class="contact__actions">
+                        <a class="pill pill--lg" href="mailto:hello@example.com" data-email data-magnetic><span>Drop me a line</span><i aria-hidden="true"></i></a>
+                        <button class="email-flap" type="button" data-copy-email><span class="email-flap__label mono">Copy address</span><span class="email-flap__value" data-email-text>hello@example.com</span></button>
+                    </div>
+                </div>
                 <div class="contact__stage stage" data-stage="contact">
                     <canvas class="stage__board" aria-hidden="true"></canvas>
-                    <img class="stage__figure" src="assets/img/art2-figure.webp" alt="" width="629" height="864" loading="lazy" decoding="async">
+                    <img class="stage__figure" src="assets/img/art2-figure.webp" alt="" width="631" height="839" loading="lazy" decoding="async">
                 </div>
             </div>
         </section>

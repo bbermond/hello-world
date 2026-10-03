@@ -21,9 +21,9 @@
     /* Artwork geometry (2× upscaled sources). figure/sun/leaves are crop boxes
        [x, y, w, h] of the cut-outs inside their parent artwork. */
     var ART = {
-        art1: { w: 1472, h: 1472, figure: [301, 111, 1005, 1123] },
-        art2: { w: 1472, h: 1472, figure: [376, 252, 629, 864] },
-        art3: { w: 1472, h: 1472, figure: [166, 239, 741, 1233] },
+        art1: { w: 1472, h: 1472, figure: [300, 109, 979, 1101] },
+        art2: { w: 1472, h: 1472, figure: [375, 250, 631, 839] },
+        art3: { w: 1472, h: 1472, figure: [175, 238, 733, 1129] },
         art4: { w: 1920, h: 2400, figure: [0, 704, 1722, 1696], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
     };
 
@@ -52,70 +52,106 @@
     function art(key) { return loadImg('assets/img/' + key + '.webp'); }
     function figureOf(key) { return loadImg('assets/img/' + key + '-figure.webp'); }
 
-    /* The artwork with a dark silhouette where the figure was lifted out —
-       the board shows this, the cut-out floats above it. */
-    function plate(img, fig, box, color) {
+    /* Where a cut-out was lifted, the board keeps a halftone imprint of it:
+       dots sized by the figure's own tones, printed light on ink. Built once
+       per figure from the cut-out itself. */
+    function halftone(fig) {
+        if (fig._halftone) return fig._halftone;
+        var W = fig.naturalWidth, H = fig.naturalHeight, g = 9;
+        var c = doc.createElement('canvas');
+        c.width = W; c.height = H;
+        var x = c.getContext('2d');
+        // the silhouette, grown a hair so no fringe of the original survives
+        [[-2, 0], [2, 0], [0, -2], [0, 2], [0, 0]].forEach(function (d) { x.drawImage(fig, d[0], d[1]); });
+        x.globalCompositeOperation = 'source-in';
+        x.fillStyle = '#1A1916';
+        x.fillRect(0, 0, W, H);
+        try {
+            var s = 4, sw = Math.ceil(W / s), sh = Math.ceil(H / s);
+            var t = doc.createElement('canvas'); t.width = sw; t.height = sh;
+            var tx = t.getContext('2d');
+            tx.drawImage(fig, 0, 0, sw, sh);
+            var px = tx.getImageData(0, 0, sw, sh).data;
+            var lum = new Float32Array(sw * sh), vals = [];
+            for (var i = 0; i < sw * sh; i++) {
+                var l = (0.2126 * px[i * 4] + 0.7152 * px[i * 4 + 1] + 0.0722 * px[i * 4 + 2]) / 255;
+                lum[i] = l;
+                if (px[i * 4 + 3] > 128 && i % 3 === 0) vals.push(l);
+            }
+            vals.sort(function (a, b) { return a - b; });
+            var lo = vals[Math.floor(vals.length * .04)] || 0, hi = vals[Math.floor(vals.length * .97)] || 1;
+            x.globalCompositeOperation = 'source-atop';
+            x.fillStyle = 'rgba(214,206,190,.82)';
+            var R2 = Math.SQRT2, span = (W + H) / R2;
+            x.beginPath();
+            for (var u = 0; u <= span + g; u += g) {
+                for (var v = -H / R2 - g; v <= W / R2 + g; v += g) {
+                    var X = (u + v) / R2, Y = (u - v) / R2;
+                    if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+                    var li = lum[Math.min(sh - 1, Math.floor(Y / s)) * sw + Math.min(sw - 1, Math.floor(X / s))];
+                    var L = Math.pow(clamp((li - lo) / Math.max(hi - lo, 0.001), 0, 1), 0.85);
+                    var r = (g / 2) * Math.sqrt(L) * 1.12;
+                    if (r < 0.4) continue;
+                    x.moveTo(X + r, Y);
+                    x.arc(X, Y, r, 0, Math.PI * 2);
+                }
+            }
+            x.fill();
+        } catch (e) { /* pixels unavailable (file://): keep the plain silhouette */ }
+        return (fig._halftone = c);
+    }
+
+    /* The artwork with the halftone imprint where its cut-out was lifted —
+       the board shows this, the cut-out floats above it. Works for any
+       source resolution: the box is scaled from ART's 2× space. */
+    function plate(img, fig, box, key) {
         var c = doc.createElement('canvas');
         c.width = img.naturalWidth; c.height = img.naturalHeight;
         var x = c.getContext('2d');
         x.drawImage(img, 0, 0);
         if (!fig) return c;
-        var s = doc.createElement('canvas');
-        s.width = box[2]; s.height = box[3];
-        var sx = s.getContext('2d');
-        sx.drawImage(fig, 0, 0, box[2], box[3]);
-        sx.globalCompositeOperation = 'source-in';
-        sx.fillStyle = color;
-        sx.fillRect(0, 0, s.width, s.height);
-        // grow the silhouette by a hair so no fringe of the original survives
-        var o = 2;
-        [[-o, 0], [o, 0], [0, -o], [0, o], [0, 0]].forEach(function (d) { x.drawImage(s, box[0] + d[0], box[1] + d[1]); });
+        var k = c.width / ART[key].w;
+        x.drawImage(halftone(fig), box[0] * k, box[1] * k, box[2] * k, box[3] * k);
         return c;
     }
 
-    /* ---------- woven filler cards (kente-inspired) ---------- */
-    function weave(n) {
-        var id = 'weave' + n + C.card;
+    /* ---------- woven filler (kente) ----------
+       Kente is woven in narrow strips that are sewn edge to edge, so each board
+       column is one strip with a single motif repeating down it, offset from
+       its neighbours: three motifs, plus plain black and olive strips. */
+    var STRIPS = ['warp', 'black', 'weft', 'olive', 'lozenge', 'black', 'weft', 'warp'];
+    function weave(kind, alt) {
+        var id = 'kente-' + kind + (alt ? 1 : 0) + C.card + C.gold;
         return F.tex(id, function (x, w, h) {
-            var g = C.gold, gr = C.green, r = C.red, k = C.card;
+            var g = C.gold, gr = C.green, r = C.red, k = C.card, o = C.olive;
+            var m = Math.max(1, Math.round(w / 48));            // 1px of misregistration
             x.fillStyle = k; x.fillRect(0, 0, w, h);
-            var u = w / 12;
-            switch (n % 6) {
-                case 0: // gold | green | gold bands with black threads
-                    x.fillStyle = g; x.fillRect(0, 0, w, h);
-                    x.fillStyle = gr; x.fillRect(w * .32, 0, w * .36, h);
-                    x.fillStyle = k; x.fillRect(w * .3, 0, u * .5, h); x.fillRect(w * .68, 0, u * .5, h);
-                    break;
-                case 1: // thin horizontal stripes
-                    var cols = [r, g, gr, k, g];
-                    for (var i = 0; i < 10; i++) { x.fillStyle = cols[i % cols.length]; x.fillRect(0, i * h / 10, w, h / 10 + .5); }
-                    break;
-                case 2: // checker
-                    x.fillStyle = g; x.fillRect(0, 0, w, h);
-                    x.fillStyle = gr; x.fillRect(0, 0, w / 2, h / 2); x.fillRect(w / 2, h / 2, w / 2, h / 2);
-                    break;
-                case 3: // red field, gold warp thread
-                    x.fillStyle = r; x.fillRect(0, 0, w, h);
-                    x.fillStyle = g; x.fillRect(w * .44, 0, w * .12, h);
-                    x.fillStyle = k; x.fillRect(w * .41, 0, u * .35, h); x.fillRect(w * .56, 0, u * .35, h);
-                    break;
-                case 4: // green field, gold diamond
-                    x.fillStyle = gr; x.fillRect(0, 0, w, h);
-                    x.fillStyle = g; x.beginPath(); x.moveTo(w / 2, h * .2); x.lineTo(w * .8, h / 2); x.lineTo(w / 2, h * .8); x.lineTo(w * .2, h / 2); x.closePath(); x.fill();
-                    break;
-                default: // black with gold zigzag
-                    x.strokeStyle = g; x.lineWidth = Math.max(1.5, w / 16);
-                    x.beginPath();
-                    for (var j = 0; j <= 4; j++) { var yy = h * (.18 + j * .16); x.lineTo(j % 2 ? w * .78 : w * .22, yy); }
-                    x.stroke();
+            if (kind === 'warp') {                              // gold field, thin warp threads
+                x.fillStyle = alt ? gr : g; x.fillRect(0, 0, w, h);
+                var th = [[.16, .05, k], [.3, .09, alt ? g : gr], [.47, .06, r], [.61, .09, alt ? g : gr], [.79, .05, k]];
+                th.forEach(function (t, i) { x.fillStyle = t[2]; x.fillRect(w * t[0] + (i % 2 ? m : 0), 0, Math.max(1, w * t[1]), h); });
+            } else if (kind === 'weft') {                       // stacked weft blocks
+                var bands = alt ? [g, k, gr, k, g] : [gr, g, k, r, g];
+                for (var i = 0; i < bands.length; i++) { x.fillStyle = bands[i]; x.fillRect(0, i * h / bands.length + (i % 2 ? m : 0), w, h / bands.length + 1); }
+            } else if (kind === 'lozenge') {                     // red/green field, gold lozenge
+                x.fillStyle = alt ? gr : r; x.fillRect(0, 0, w, h);
+                x.fillStyle = g;
+                x.beginPath(); x.moveTo(w / 2 + m, h * .16); x.lineTo(w * .84, h / 2); x.lineTo(w / 2, h * .84); x.lineTo(w * .16 + m, h / 2); x.closePath(); x.fill();
+                x.fillStyle = k;
+                x.beginPath(); x.moveTo(w / 2, h * .36); x.lineTo(w * .64, h / 2); x.lineTo(w / 2, h * .64); x.lineTo(w * .36, h / 2); x.closePath(); x.fill();
+            } else if (kind === 'olive') {
+                x.fillStyle = o; x.fillRect(0, 0, w, h);
             }
+            FlapBoard.texture(x, w, h, 0.6);
         });
     }
     function filler(t, salt) {
-        var v = ((t.r * 7 + t.c * 13 + (salt || 0) * 5) % 11 + 11) % 11;
-        if (v < 4) return F.fill(C.card);
-        if (v === 4) return F.fill(C.olive);
-        return weave(v + (salt || 0));
+        var kind = STRIPS[(t.c + (salt || 0)) % STRIPS.length];
+        if (kind === 'black') return F.fill(C.card);
+        // the motif repeats every other row, offset by column
+        var on = (t.r + t.c + (salt || 0)) % 2 === 0;
+        if (!on && kind !== 'olive') return F.fill(kind === 'warp' ? C.card : C.card);
+        return weave(kind, ((t.r >> 1) + t.c) % 2 === 1);
     }
     function card(ch) { return F.char(ch, C.card, C['card-ink']); }
 
@@ -177,7 +213,7 @@
             var t = board.tileAt(e.clientX - r.left, e.clientY - r.top);
             if (t) ripple(board, t, opt.ripple || 2.2, 70, 1500);
         });
-        if (!reduce && opt.idle !== false) board.idle(opt.idle);
+        if (!reduce && opt.idle !== false) board.idle(Object.assign({ skip: function (t) { return t.home && t.home.k === 'char' && t.home.ch !== ' '; } }, opt.idle));
         board.visible = false;
         new IntersectionObserver(function (es) { board.visible = es[0].isIntersecting; }, { rootMargin: '100px' }).observe(canvas);
         boards.push(board);
@@ -223,7 +259,9 @@
     function register(fig, board, key, box) {
         var m = board.mapping(key);
         if (!m) return;
-        var x = m.x + box[0] * m.scale, y = m.y + box[1] * m.scale, w = box[2] * m.scale, h = box[3] * m.scale;
+        var src = board.sources[key].img, k = (src.naturalWidth || src.width) / ART[key].w;
+        var sc = m.scale * k;
+        var x = m.x + box[0] * sc, y = m.y + box[1] * sc, w = box[2] * sc, h = box[3] * sc;
         fig.style.left = x + 'px'; fig.style.top = y + 'px';
         fig.style.width = w + 'px'; fig.style.height = h + 'px';
         var sh = fig._shadow;
@@ -248,7 +286,8 @@
     function freeRegion(board, key, box, minCols) {
         var m = board.mapping(key);
         var cw = board.cssW / board.cols;
-        var x0 = m ? m.x + box[0] * m.scale : 0, x1 = m ? m.x + (box[0] + box[2]) * m.scale : 0;
+        var src = board.sources[key].img, k = (src.naturalWidth || src.width) / ART[key].w;
+        var x0 = m ? m.x + box[0] * m.scale * k : 0, x1 = m ? m.x + (box[0] + box[2]) * m.scale * k : 0;
         var leftCols = Math.floor(x0 / cw), rightStart = Math.ceil(x1 / cw);
         var right = board.cols - rightStart;
         if (right >= minCols && right >= leftCols) return { c0: rightStart, c1: board.cols, r0: 0, r1: board.rows, side: 'right' };
@@ -313,12 +352,13 @@
         });
         board.on('layout', function () {
             register(fig, board, 'art1', box);
-            msg = layout('BERMOND DIGITAL DESIGNER', { c0: 0, c1: board.cols, r0: 0, r1: board.rows });
+            var r0 = Math.max(0, board.rows - 4);
+            msg = layout('HELLO I\u2019M BERMOND', { c0: 0, c1: board.cols, r0: r0, r1: board.rows });
         });
 
         function init(img, figImg) {
             shadowFor(fig, figImg);
-            board.setSource('art1', plate(img, figImg, box, C.hole), { fx: 0.5, fy: 0.42 });
+            board.setSource('art1', plate(img, figImg, box, 'art1'), { fx: 0.5, fy: 0.42 });
             board.resize();
             if (reduce) stage.classList.add('is-ready');
             ready = true;
@@ -349,7 +389,10 @@
             var mx = reduce ? 0 : mouse.x, my = reduce ? 0 : mouse.y;
             var lift = reduce ? 0 : sstep(0, 0.55, p);
             // the cut-out leaves its silhouette behind and comes toward you
-            pose(fig, stage, mx * 9 - lift * 18, my * 6 - lift * 70, 1 + lift * 0.07, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 30, lift);
+            // closer things move faster: the cut-out out-scrolls its board and
+            // clears the rows where the message lands
+            var rise = reduce ? 0 : p * board.cssH * 0.62;
+            pose(fig, stage, mx * 9 - lift * 18, my * 6 - lift * 30 - rise, 1 + lift * 0.07, -mx * 7 + 6 + lift * 10, 10 + my * 4 + lift * 30, lift);
             canvas.style.transform = 'translate3d(' + (-mx * 3).toFixed(2) + 'px,' + (-my * 2 + p * 60).toFixed(2) + 'px,0)';
             for (var i = 0; i < accents.length; i++) {
                 var d = accents[i]._d || (accents[i]._d = parseFloat(accents[i].getAttribute('data-depth')) || 0.5);
@@ -381,7 +424,7 @@
         var range = { top: 0, height: 1 };
         var stageIdx = -1, ready = false, region = null, fitsBeside = true;
         var maps = [{}, {}];
-        var MSG = ['EVERY IMAGE HAS A STORY UNDER\u00ADNEATH', 'DESIGN THAT FLIPS THE SCRIPT'];
+        var MSG = ['EVERY IMAGE HAS A STORY BENEATH', 'DESIGN THAT FLIPS THE SCRIPT'];
         var stepText = null;
 
         var board = new FlapBoard(canvas, {
@@ -413,13 +456,24 @@
         function init(img, figImg) {
             board.o.cols = cols();
             shadowFor(fig, figImg);
-            board.setSource('art3', plate(img, figImg, box, C.hole), { fx: 0.12, fy: 0.16 });
+            board.setSource('art3', plate(img, figImg, box, 'art3'), { fx: 0.12, fy: 0.16 });
             board.resize();
             stage.classList.add('is-ready');
             interactive(board, canvas, { hover: { hold: 1200, chain: 2 }, idle: { every: [900, 2000], chain: [2, 4], hold: [700, 1300] } });
             stepText = stepEl ? new FlapText(stepEl, { duration: 420 }) : null;
             ready = true;
             measure();
+            // the wall spans the viewport: on big/retina screens fetch the 4× art
+            if (stage.clientWidth * Math.min(win.devicePixelRatio || 1, 2) > 1700) {
+                setTimeout(function () {
+                    loadImg('assets/img/art3-4x.avif').then(function (im) { return im || loadImg('assets/img/art3-4x.webp'); }).then(function (big) {
+                        if (!big) return;
+                        loaded.art3[3] = big;
+                        board.setSource('art3', plate(big, figImg, box, 'art3'), { fx: 0.12, fy: 0.16 });
+                        board.emit('layout', board);
+                    });
+                }, 1800);
+            }
         }
 
         function apply(s, instant) {
@@ -548,30 +602,59 @@
         var exploded = -1;
         var A = ART.art4;
         var tilt = { x: 0, y: 0, tx: 0, ty: 0 };
+        var scene = $('.layers__scene'), labelsBox = $('.layers__labels');
+        var labels = $$('.layers__label');
+        var geo = null;
+        // where each label points: a spot on the left edge of its layer, as
+        // fractions of the artboard from its centre
+        var ANCHOR = [[-0.5, -0.41], [-0.5, -0.17], [-0.5, 0.2], [-0.5, -0.36]];
+        var LZ = $$('.layer', rig).map(function (l) { return parseFloat(l.getAttribute('data-z')) || 0; });
+        function measureGeo() {
+            var sr = scene.getBoundingClientRect(), lr = labelsBox.getBoundingClientRect();
+            var cs = getComputedStyle(scene).perspectiveOrigin.split(' ');
+            geo = {
+                ox: parseFloat(cs[0]), oy: parseFloat(cs[1]),
+                cx: sr.width / 2, cy: sr.height / 2,
+                dx: sr.left - lr.left, dy: sr.top - lr.top,
+                w: rig.offsetWidth, h: rig.offsetHeight,
+                d: parseFloat(getComputedStyle(scene).perspective) || 1700,
+                lw: labels.map(function (l) { return l.offsetWidth; }), lh: labels.length ? labels[0].offsetHeight : 14
+            };
+        }
+        function project(px, py, pz, rx, ry, rz, sc) {
+            px *= sc; py *= sc;
+            var c = Math.cos(rz), s = Math.sin(rz);
+            var x1 = px * c - py * s, y1 = px * s + py * c, z1 = pz;
+            c = Math.cos(ry); s = Math.sin(ry);
+            var x2 = x1 * c + z1 * s, z2 = -x1 * s + z1 * c;
+            c = Math.cos(rx); s = Math.sin(rx);
+            var y3 = y1 * c - z2 * s, z3 = y1 * s + z2 * c;
+            var k = geo.d / (geo.d - z3);
+            return [geo.ox + (geo.cx + x2 - geo.ox) * k, geo.oy + (geo.cy + y3 - geo.oy) * k];
+        }
         section.addEventListener('pointermove', function (e) {
             tilt.tx = (e.clientX / vw - 0.5) * 2; tilt.ty = (e.clientY / vh - 0.5) * 2;
         });
         section.addEventListener('pointerleave', function () { tilt.tx = tilt.ty = 0; });
         var ROWS = [
-            ['LAYER', 'ELEMENT', 'DEPTH'],
             ['01', 'FIELD', '-360'],
             ['02', 'SUN', '-170'],
             ['03', 'PORTRAIT', '+040'],
             ['04', 'FOLIAGE', '+230']
         ];
         var board = new FlapBoard(canvas, {
-            cols: 21, rows: 5, gap: 2, radius: 1.5, split: 1, duration: 480, glyph: 0.62, gloss: true,
+            cols: 21, rows: 4, gap: 2, radius: 1.5, split: 1, duration: 480, glyph: 0.62, gloss: true,
             face: function (t) { return text(t, false); }
         });
 
         var COLS = [0, 6, 16];
         function text(t, open) {
-            var row = ROWS[t.r], c = t.c, head = t.r === 0;
-            var bg = head ? 'transparent' : '#163A3C', fg = head ? 'rgba(15,42,44,.8)' : '#EAF4F1';
+            var row = ROWS[t.r], c = t.c;
+            var bg = '#163A3C', fg = '#EAF4F1';
             for (var k = 2; k >= 0; k--) {
                 if (c >= COLS[k]) {
                     var s = row[k];
-                    if (k === 2 && !head && !open) s = '0000';
+                    if (k === 2 && !open) s = '0000';
                     var ch = s[c - COLS[k]];
                     return F.char(ch == null ? ' ' : ch, bg, fg);
                 }
@@ -608,7 +691,7 @@
             boards.push(board);
             measure();
         }
-        function measure() { range = sceneRange(section); }
+        function measure() { range = sceneRange(section); geo = null; }
 
         function tick() {
             var p = clamp((scrollY - range.top) / Math.max(1, range.height - range.view), 0, 1);
@@ -617,14 +700,26 @@
             var turn = reduce ? 0.5 : sstep(0.05, 0.55, p);
             rig.style.setProperty('--explode', e.toFixed(4));
             tilt.x = lerp(tilt.x, reduce ? 0 : tilt.tx, 0.06); tilt.y = lerp(tilt.y, reduce ? 0 : tilt.ty, 0.06);
-            rig.style.setProperty('--ry', (lerp(0, -38, turn) + tilt.x * (4 + 8 * e)).toFixed(2) + 'deg');
-            rig.style.setProperty('--rx', (lerp(0, 16, turn) - tilt.y * (3 + 6 * e)).toFixed(2) + 'deg');
-            rig.style.setProperty('--rz', (lerp(0, -2, turn)).toFixed(2) + 'deg');
-            rig.style.setProperty('--rs', lerp(1, 0.8, e).toFixed(4));
+            var ry = lerp(0, -38, turn) + tilt.x * (4 + 8 * e), rx = lerp(0, 12, turn) - tilt.y * (3 + 6 * e), rz = lerp(0, -2, turn), rs = lerp(1, 0.8, e);
+            rig.style.setProperty('--ry', ry.toFixed(2) + 'deg');
+            rig.style.setProperty('--rx', rx.toFixed(2) + 'deg');
+            rig.style.setProperty('--rz', rz.toFixed(2) + 'deg');
+            rig.style.setProperty('--rs', rs.toFixed(4));
+            section.style.setProperty('--e', e.toFixed(4));
+            // labels stay flat to the screen and track their layer's projected edge
+            if (!geo) measureGeo();
+            if (geo.w) {
+                var R = Math.PI / 180;
+                for (var i = 0; i < labels.length; i++) {
+                    var a = ANCHOR[i], pt = project(a[0] * geo.w, a[1] * geo.h, LZ[i] * e, rx * R, ry * R, rz * R, rs);
+                    labels[i].style.transform = 'translate3d(' + (pt[0] + geo.dx - geo.lw[i] + 3).toFixed(1) + 'px,' + (pt[1] + geo.dy - geo.lh / 2).toFixed(1) + 'px,0)';
+                    labels[i].style.opacity = sstep(0.35, 0.8, e).toFixed(3);
+                }
+            }
             var open = e > 0.45;
             if (open !== (exploded === 1)) {
                 exploded = open ? 1 : 0;
-                board.wave(function (t) { return text(t, open); }, { origin: [0, 16], speed: 30, jitter: 40, cycle: open ? 2 : 1 });
+                board.wave(function (t) { return text(t, open); }, { origin: [0, 16], speed: 30, jitter: 40, cycle: 3 });
             }
         }
         ticks.push(tick);
@@ -684,7 +779,7 @@
             board.resize();
             boards.push(board);
             shadowFor(fig, figImg);
-            sboard.setSource('art2', plate(img, figImg, box, C.hole), { fx: 0.5, fy: 0.45 });
+            sboard.setSource('art2', plate(img, figImg, box, 'art2'), { fx: 0.5, fy: 0.45 });
             sboard.resize();
             stage.classList.add('is-ready');
             var lift = 0, target = 0;
@@ -703,6 +798,78 @@
             }, { threshold: 0.2 }).observe(canvas);
         }
         return { init: init, board: board, sboard: sboard, resize: function () { board.o.cols = cols(); board.o.rows = board.o.cols >= 20 ? 2 : 4; } };
+    })();
+
+    /* ======================================================================
+       Services — flap numerals and a woven strip that spells the service
+       ====================================================================== */
+    var services = $$('.service').map(function (el, idx) {
+        var num = el.getAttribute('data-num'), word = el.getAttribute('data-word');
+        var nb = new FlapBoard($('.service__num', el), {
+            cols: 2, rows: 1, gap: 3, radius: 3, split: 1, duration: 560, glyph: 0.64,
+            face: function () { return card(reduce ? num[0] : '0'); }
+        });
+        var sb = new FlapBoard($('.service__strip', el), {
+            cols: 6, rows: 1, gap: 2, radius: 1.5, split: 1, duration: 460, glyph: 0.62,
+            face: function (t) { return filler({ r: 0, c: t.c + idx * 2 }, 0); }
+        });
+        function showNum(cycle) { nb.wave(function (t) { return card(num[t.c]); }, { origin: [0, 0], speed: 90, cycle: cycle }); }
+        el.addEventListener('mouseenter', function () {
+            if (reduce) return;
+            sb.wave(function (t) { return card(word[t.c] || ' '); }, { origin: [0, 0], speed: 55, cycle: 2 });
+            nb.tiles.forEach(function (t, i) {
+                for (var k = 1; k <= 3; k++) nb.flip(t, card(String((+num[i] + k) % 10)), i * 60, 0.22);
+                nb.flip(t, card(num[i]), 0, 0.6);
+            });
+        });
+        el.addEventListener('mouseleave', function () {
+            if (reduce) return;
+            sb.wave(function (t) { return filler({ r: 0, c: t.c + idx * 2 }, 0); }, { origin: [0, 5], speed: 45 });
+        });
+        return {
+            init: function () {
+                nb.resize(); sb.resize();
+                boards.push(nb, sb);
+                if (reduce) { nb.setAll(function (t) { return card(num[t.c]); }); return; }
+                new IntersectionObserver(function (es, ob) {
+                    if (es[0].isIntersecting) { showNum(3); ob.disconnect(); }
+                }, { threshold: 0.9 }).observe(el);
+            }
+        };
+    });
+
+    /* ======================================================================
+       Process timetable — a departures board that follows the open step
+       ====================================================================== */
+    var timetable = (function () {
+        var canvas = $('.timetable canvas');
+        if (!canvas) return { init: function () { }, set: function () { } };
+        var STEPS = ['WIREFRAMES', 'DESIGN', 'BUILD', 'LAUNCH'];
+        var active = 0;
+        var board = new FlapBoard(canvas, {
+            cols: 19, rows: 4, gap: 2, radius: 1.5, split: 1, duration: 480, glyph: 0.62,
+            face: function (t) { return faceAt(t); }
+        });
+        function status(i) { return i < active ? 'DONE' : i === active ? 'NOW' : i === active + 1 ? 'NEXT' : 'LATER'; }
+        function faceAt(t) {
+            var i = t.r, st = status(i);
+            var dim = st === 'DONE' ? 'rgba(239,233,220,.45)' : C['card-ink'];
+            if (t.c < 2) return F.char(pad(i + 1, 2)[t.c], C.card, dim);
+            if (t.c >= 3 && t.c < 13) return F.char(STEPS[i][t.c - 3] || ' ', C.card, dim);
+            if (t.c >= 14) {
+                var ch = st[t.c - 14] || ' ';
+                return st === 'NOW' ? F.char(ch, C.gold, '#161512') : F.char(ch, C.card, dim);
+            }
+            return card(' ');
+        }
+        function render(instant) {
+            board.wave(function (t) { return faceAt(t); }, { origin: [active, 14], speed: instant ? 0 : 40, cycle: instant || reduce ? 0 : 2 });
+        }
+        return {
+            init: function () { board.resize(); boards.push(board); },
+            set: function (i) { if (i === active) return; active = i; render(false); },
+            render: render
+        };
     })();
 
     /* ======================================================================
@@ -735,7 +902,7 @@
     /* ======================================================================
        Typography: headline, hover flips, numbers, clock, indicator
        ====================================================================== */
-    var titles = $$('[data-flap-title]').map(function (el) { return new FlapText(el, { duration: 560, stagger: 55, glyphs: 'ACEGINOSUXZ' }); });
+    var titles = $$('[data-flap-title]').map(function (el) { return new FlapText(el, { duration: 560, stagger: 55 }); });
     $('.hero__title').addEventListener('mouseenter', function () {
         titles.forEach(function (t, i) { t.scramble({ cycle: 1, stagger: 34, delay: i * 120 }); });
     });
@@ -772,6 +939,7 @@
             var idx = sections.indexOf(e.target);
             indNum.set(pad(idx + 1, 2), { stagger: 40 });
             indName.textContent = e.target.getAttribute('data-section');
+            indicator.classList.toggle('is-teal', e.target.id === 'layers');
             var id = '#' + e.target.id;
             navLinks.forEach(function (a) { a.classList.toggle('is-active', a.getAttribute('href') === id); });
         });
@@ -804,6 +972,7 @@
             var open = btn.getAttribute('aria-expanded') === 'true';
             btn.setAttribute('aria-expanded', String(!open));
             if (!open) {
+                timetable.set($$('.step button').indexOf(btn));
                 panel.hidden = false;
                 if (week) { week.set(weekText.replace(/\d/g, '0'), { stagger: 0, duration: 1 }); setTimeout(function () { week.set(weekText, { cycle: 2, stagger: 60 }); }, 120); }
                 var h = panel.scrollHeight;
@@ -896,9 +1065,58 @@
         return { click: click };
     })();
 
-    /* email placeholder lives in one place */
+    /* email lives in one place: <body data-email="…"> */
     var EMAIL = doc.body.getAttribute('data-email') || 'hello@example.com';
     $$('[data-email]').forEach(function (a) { a.setAttribute('href', 'mailto:' + EMAIL); });
+
+    /* the address as a row of flaps; click copies it */
+    (function () {
+        var btn = $('[data-copy-email]');
+        if (!btn) return;
+        var valueEl = $('[data-email-text]', btn), label = $('.email-flap__label', btn);
+        valueEl.textContent = EMAIL;
+        valueEl.classList.add('flaptext--cards');
+        var ft = new FlapText(valueEl, { duration: 380, stagger: 22, glyphs: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' });
+        var timer = 0;
+        function say(text) {
+            var padded = text; while (padded.length < EMAIL.length) padded += ' ';
+            ft.set(padded.slice(0, EMAIL.length), { cycle: 1, stagger: 18 });
+        }
+        btn.addEventListener('click', function () {
+            var done = function () {
+                label.textContent = 'Copied';
+                say('COPIED');
+                clearTimeout(timer);
+                timer = setTimeout(function () { label.textContent = 'Copy address'; ft.set(EMAIL, { cycle: 1, stagger: 18 }); }, 1800);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(EMAIL).then(done, function () { win.location.href = 'mailto:' + EMAIL; });
+            else win.location.href = 'mailto:' + EMAIL;
+        });
+    })();
+
+    /* mobile menu: a full-screen departures board */
+    (function () {
+        var toggle = $('[data-menu-toggle]'), menu = $('#menu');
+        if (!toggle || !menu) return;
+        var words = $$('[data-menu-word]', menu).map(function (el) {
+            el.classList.add('flaptext--cards');
+            return new FlapText(el, { duration: 420, stagger: 34 });
+        });
+        function setOpen(open) {
+            menu.hidden = !open;
+            toggle.setAttribute('aria-expanded', String(open));
+            toggle.textContent = open ? 'Close' : 'Menu';
+            doc.body.classList.toggle('menu-open', open);
+            if (lenis) { if (open) lenis.stop(); else lenis.start(); }
+            if (open) {
+                words.forEach(function (w, i) { w.intro({ delay: 80 + i * 110, stagger: 40, cycle: 2 }); });
+                var first = $('a', menu); if (first) first.focus({ preventScroll: true });
+            } else toggle.focus({ preventScroll: true });
+        }
+        toggle.addEventListener('click', function () { setOpen(menu.hidden); });
+        $$('a', menu).forEach(function (a) { a.addEventListener('click', function () { setOpen(false); }); });
+        doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) setOpen(false); });
+    })();
 
     /* ======================================================================
        Theme toggle — a curtain of flaps sweeps the new colours in
@@ -920,6 +1138,7 @@
         try { localStorage.setItem('theme', t); } catch (e) { }
         readPalette();
         rebuildPlates();
+        timetable.render(true);
         syncToggle();
     }
     syncToggle();
@@ -953,9 +1172,9 @@
 
     var loaded = {};
     function rebuildPlates() {
-        if (loaded.art1) { hero.board.setSource('art1', plate(loaded.art1[0], loaded.art1[1], ART.art1.figure, C.hole), { fx: 0.5, fy: 0.42 }); }
-        if (loaded.art3) { wall.board.setSource('art3', plate(loaded.art3[0], loaded.art3[1], ART.art3.figure, C.hole), { fx: 0.12, fy: 0.16 }); }
-        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, C.hole), { fx: 0.5, fy: 0.45 }); }
+        if (loaded.art1) { hero.board.setSource('art1', plate(loaded.art1[0], loaded.art1[1], ART.art1.figure, 'art1'), { fx: 0.5, fy: 0.42 }); }
+        if (loaded.art3) { wall.board.setSource('art3', plate(loaded.art3[3] || loaded.art3[0], loaded.art3[1], ART.art3.figure, 'art3'), { fx: 0.12, fy: 0.16 }); }
+        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); }
         boards.forEach(function (b) { b.cache.clear(); b.draw(); });
     }
 
@@ -966,7 +1185,7 @@
     function onResize() {
         vw = win.innerWidth; vh = win.innerHeight;
         wall.resize(); contact.resize();
-        [hero.board, wall.board, contact.board, contact.sboard, layers.board, mark.board].forEach(function (b) { if (b.dw) b.resize(); });
+        boards.forEach(function (b) { if (b.dw) b.resize(); });
         wall.measure(); layers.measure();
     }
     win.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(onResize, 160); });
@@ -979,7 +1198,7 @@
     var counter = new FlapText(countEl, { duration: 300, stagger: 0, glyphs: '0123456789' });
     var lb = new FlapBoard($('.loader__board'), {
         cols: clamp(Math.round(doc.documentElement.clientWidth / 92), 6, 18), aspect: 1.3, gap: 2, radius: 2, split: 1, duration: 560,
-        face: function (t) { return (t.r + t.c) % 9 === 0 ? weave(t.r + t.c) : F.fill(C.card); }
+        face: function (t) { return (t.r + t.c) % 9 === 0 ? weave(['warp', 'weft', 'lozenge'][(t.r + t.c) % 3], t.r % 2 === 1) : F.fill(C.card); }
     });
     lb.resize();
 
@@ -1014,6 +1233,8 @@
         work.init();
         layers.init();
         mark.init(res[1][0]);
+        services.forEach(function (sv) { sv.init(); });
+        timetable.init();
         requestAnimationFrame(loop);
         var wait = Math.max(0, MIN + 250 - (performance.now() - t0));
         setTimeout(function () {

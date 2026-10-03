@@ -204,6 +204,7 @@
     var x = cv.getContext('2d');
     if (f.k === 'char') {
       x.fillStyle = f.bg; x.fillRect(0, 0, w, h);
+      if (f.bg !== 'transparent') FlapBoard.texture(x, w, h, 0.55);
       if (f.ch && f.ch !== ' ') {
         var cap = h * this.o.glyph;
         var size = cap / 0.7;                       // Barlow's cap height ≈ 0.7em
@@ -257,8 +258,9 @@
     this._wake();
   };
 
-  /* Make `f` the tile's resting face, replacing whatever is pending. `cycle`
-     flips through that many random glyph cards on the way (Solari style). */
+  /* Make `f` the tile's resting face, replacing whatever is pending. With
+     `cycle`, a glyph flap steps through the Solari drum in order (space, A–Z,
+     0–9 …) on its way, at most cycle × 4 steps, so near letters land first. */
   FlapBoard.prototype.target = function (t, f, delay, cycle) {
     t.home = f;
     t.returnAt = 0;
@@ -267,12 +269,19 @@
     if (showing === f) return;
     var at = now() + (delay || 0);
     if (cycle && f.k === 'char') {
-      for (var i = 0; i < cycle; i++) {
-        var g = FlapBoard.GLYPHS[(Math.random() * FlapBoard.GLYPHS.length) | 0];
-        t.queue.push({ face: face.char(g, f.bg, f.fg), at: at, speed: 0.42 });
+      var D = FlapBoard.DRUM, to = D.indexOf(f.ch);
+      if (to >= 0) {
+        var from = showing.k === 'char' ? D.indexOf(showing.ch) : 0;
+        if (from < 0) from = 0;
+        var dist = (to - from + D.length) % D.length;
+        var steps = Math.min(dist, cycle * 4);
+        for (var i = steps - 1; i >= 1; i--) {
+          var g = D[(to - i + D.length) % D.length];
+          t.queue.push({ face: face.char(g, f.bg, f.fg), at: at, speed: 0.13 });
+        }
       }
     }
-    t.queue.push({ face: f, at: at, speed: cycle ? 0.6 : 1 });
+    t.queue.push({ face: f, at: at, speed: cycle ? 0.5 : 1 });
     this._wake();
   };
 
@@ -347,13 +356,15 @@
     function tick() {
       if (self.visible && self.tiles.length && !self.paused) {
         var t = self.tiles[(Math.random() * self.tiles.length) | 0];
+        if (opt.skip && opt.skip(t)) { self.idleTimer = setTimeout(tick, rnd(opt.every[0], opt.every[1]) * 0.5); return; }
         var dirs = [[0, 1], [1, 0], [0, -1], [-1, 0], [1, 1], [-1, 1]];
         var d = dirs[(Math.random() * dirs.length) | 0];
         var n = Math.round(rnd(opt.chain[0], opt.chain[1]));
         var hold = rnd(opt.hold[0], opt.hold[1]);
         for (var k = 0; k < n; k++) {
           var nt = self.at(t.r + d[0] * k, t.c + d[1] * k);
-          if (nt) self.poke(nt, k * opt.step, hold);
+          if (!nt || (opt.skip && opt.skip(nt))) break;
+          self.poke(nt, k * opt.step, hold);
         }
       }
       self.idleTimer = setTimeout(tick, rnd(opt.every[0], opt.every[1]));
@@ -583,6 +594,26 @@
   };
 
   FlapBoard.GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('');
+  FlapBoard.DRUM = (' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-/:@&\u2019').split('');
+
+  /* Shared print grain for cards: one small noise tile, made once. */
+  FlapBoard.grain = (function () {
+    var c = document.createElement('canvas');
+    c.width = c.height = 96;
+    var x = c.getContext('2d'), d = x.createImageData(96, 96);
+    for (var i = 0; i < d.data.length; i += 4) {
+      var v = Math.random();
+      var light = v > 0.5;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = light ? 255 : 0;
+      d.data[i + 3] = Math.round(Math.pow(Math.abs(v - 0.5) * 2, 2.2) * 70);
+    }
+    x.putImageData(d, 0, 0);
+    return c;
+  })();
+  FlapBoard.texture = function (x, w, h, alpha) {
+    var p = x.createPattern(FlapBoard.grain, 'repeat');
+    x.save(); x.globalAlpha = alpha == null ? 0.5 : alpha; x.fillStyle = p; x.fillRect(0, 0, w, h); x.restore();
+  };
 
   root.FlapBoard = FlapBoard;
 })(window);
