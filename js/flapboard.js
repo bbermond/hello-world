@@ -368,11 +368,14 @@
     opt = Object.assign({ every: [700, 1700], chain: [2, 5], hold: [700, 1600], step: 90 }, opt || {});
     this.stopIdle();
     function tick() {
-      if (self.visible && self.tiles.length && !self.paused) {
+      var T = now();
+      // one reveal at a time, and nothing while the board is told to keep quiet
+      if (self.visible && self.tiles.length && !self.paused && T >= (self._quietUntil || 0) && T >= (self._revealUntil || 0)) {
         var hold = rnd(opt.hold[0], opt.hold[1]);
         var seq = opt.pick ? opt.pick() : null;
         if (seq && seq.length) {
           for (var j = 0; j < seq.length; j++) self.poke(seq[j], j * opt.step, hold + 500);
+          self._revealUntil = T + seq.length * opt.step + hold + 500 + self.o.duration * 2 + 600;
         } else {
           var t = self.tiles[(Math.random() * self.tiles.length) | 0];
           if (!(opt.skip && opt.skip(t))) {
@@ -390,6 +393,11 @@
       self.idleTimer = setTimeout(tick, rnd(opt.every[0], opt.every[1]));
     }
     this.idleTimer = setTimeout(tick, rnd(200, 900));
+  };
+
+  /* Hold idle flips for a while (after an intro, a scene change …). */
+  FlapBoard.prototype.quiet = function (ms) {
+    this._quietUntil = Math.max(this._quietUntil || 0, now() + ms);
   };
 
   FlapBoard.prototype.stopIdle = function () { clearTimeout(this.idleTimer); this.idleTimer = 0; };

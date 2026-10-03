@@ -7,6 +7,10 @@
     'use strict';
 
     var doc = document, root = doc.documentElement, win = window;
+    // the layout width without the scrollbar, for CSS that lines up with the grid
+    function setCW() { root.style.setProperty('--cw', root.clientWidth + 'px'); }
+    setCW();
+    if (win.ResizeObserver) new ResizeObserver(setCW).observe(root);
     var reduce = win.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var fine = win.matchMedia('(hover: hover) and (pointer: fine)').matches;
     var F = FlapBoard.face;
@@ -23,7 +27,7 @@
     var ART = {
         art1: { w: 1472, h: 1472, figure: [300, 109, 979, 1101] },
         art2: { w: 1472, h: 1472, figure: [375, 250, 631, 839] },
-        art3: { w: 1472, h: 1472, figure: [177, 238, 753, 1132] },
+        art3: { w: 1472, h: 1472, figure: [177, 238, 735, 1116] },
         art4: { w: 1920, h: 2400, figure: [0, 704, 1722, 1696], sun: [144, 254, 1631, 1631], leaves: [849, 72, 1071, 1031] }
     };
 
@@ -199,10 +203,48 @@
         return words.map(function (w) { return w.cells; });
     }
 
-    /* Idle reveal of one whole hidden word, left to right. */
-    function wordPick(board, words) {
-        // single letters ("A") read as stray tiles; only reveal real words
-        words = words.filter(function (w) { return w.length >= 3; });
+    /* How much of each tile a cut-out hides at rest (0..1), from its alpha. */
+    function coverageOf(board, fig) {
+        var key = board.cssW + 'x' + board.cssH + fig.style.cssText.slice(0, 80);
+        if (fig._cov && fig._cov.key === key) return fig._cov.map;
+        var map = null;
+        try {
+            var k = 0.25, W = Math.max(1, Math.round(board.cssW * k)), H = Math.max(1, Math.round(board.cssH * k));
+            var c = doc.createElement('canvas'); c.width = W; c.height = H;
+            var x = c.getContext('2d');
+            x.drawImage(fig, parseFloat(fig.style.left) * k, parseFloat(fig.style.top) * k, parseFloat(fig.style.width) * k, parseFloat(fig.style.height) * k);
+            var d = x.getImageData(0, 0, W, H).data, q = k / board.dpr;
+            map = board.tiles.map(function (t) {
+                var x0 = Math.floor(t.x * q), y0 = Math.floor(t.y * q), x1 = Math.ceil((t.x + t.w) * q), y1 = Math.ceil((t.y + t.h) * q);
+                var n = 0, hit = 0;
+                for (var yy = y0; yy < y1 && yy < H; yy++) for (var xx = x0; xx < x1 && xx < W; xx++) { n++; if (d[(yy * W + xx) * 4 + 3] > 128) hit++; }
+                return n ? hit / n : 0;
+            });
+        } catch (e) { map = null; }
+        fig._cov = { key: key, map: map };
+        return map;
+    }
+
+    /* Idle reveal of one whole hidden word, left to right: words of three
+       letters or more, from `allow` when given, and none the cut-out hides. */
+    function wordPick(board, words, opt) {
+        opt = opt || {};
+        var cov = opt.fig ? coverageOf(board, opt.fig) : null;
+        words = words.filter(function (w) {
+            if (w.length < 3) return false;
+            if (opt.allow && opt.map) {
+                var text = w.map(function (q) { return opt.map[q[0] + ':' + q[1]]; }).join('');
+                if (opt.allow.indexOf(text) < 0) return false;
+            }
+            if (opt.fig) {
+                if (!cov) return false;
+                for (var i = 0; i < w.length; i++) {
+                    var t = board.at(w[i][0], w[i][1]);
+                    if (!t || cov[t.i] > 0.1) return false;
+                }
+            }
+            return true;
+        });
         if (!words.length) return null;
         var w = words[(Math.random() * words.length) | 0];
         return w.map(function (q) { return board.at(q[0], q[1]); }).filter(Boolean);
@@ -236,7 +278,7 @@
         var map = {};
         var top = region.r0 + Math.floor((height - lines.length) / 2);
         var longest = lines.reduce(function (m, l) { return Math.max(m, l.length); }, 0);
-        var left = region.c0 + Math.floor((width - longest) / 2);
+        var left = region.align === 'left' ? region.c0 : region.c0 + Math.floor((width - longest) / 2);
         lines.forEach(function (l, i) {
             for (var k = 0; k < l.length; k++) map[(top + i) + ':' + (left + k)] = l[k];
         });
@@ -271,7 +313,11 @@
         var skip = function (t) { return isLetter(t.home) || isLetter(board.o.alt && board.o.alt(t)); };
         if (!reduce && opt.idle !== false) board.idle(Object.assign({ skip: skip }, opt.idle));
         board.visible = false;
-        new IntersectionObserver(function (es) { board.visible = es[0].isIntersecting; }, { rootMargin: '100px' }).observe(canvas);
+        new IntersectionObserver(function (es) {
+            var v = es[0].isIntersecting;
+            if (v && !board.visible) board.quiet(1500);
+            board.visible = v;
+        }, { rootMargin: '100px' }).observe(canvas);
         boards.push(board);
         return board;
     }
@@ -430,12 +476,12 @@
 
         /* opening: the board assembles the artwork tile by tile, then the
            cut-out settles into its silhouette */
-        var idleOpt = { pick: function () { return state === 'img' && Math.random() < 0.45 ? wordPick(board, words) : null; } };
+        var idleOpt = { pick: function () { return state === 'img' && Math.random() < 0.45 ? wordPick(board, words, { map: msg, allow: ['BERMOND'], fig: fig }) : null; } };
         function intro(delay) {
             if (reduce) { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); return; }
             board.wave(function () { return F.img('art1'); }, { origin: [0, board.cols], speed: 62, jitter: 90, cycle: 2, delay: delay || 0 });
-            setTimeout(function () { stage.classList.add('is-ready'); }, (delay || 0) + 1250);
-            setTimeout(function () { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); }, (delay || 0) + 1900);
+            setTimeout(function () { stage.classList.add('is-ready'); }, (delay || 0) + 760);
+            setTimeout(function () { interactive(board, canvas, { hover: { hold: 1500, chain: 2 }, idle: idleOpt }); board.quiet(2000); }, (delay || 0) + 1300);
         }
 
         section.addEventListener('pointermove', function (e) {
@@ -536,7 +582,7 @@
                 idle: {
                     every: [900, 2000], chain: [2, 4], hold: [700, 1300],
                     // while the image shows, now and then a whole word of the story surfaces
-                    pick: function () { return (stageIdx <= 0 || stageIdx === 3) && Math.random() < 0.5 ? wordPick(board, words) : null; }
+                    pick: function () { return (stageIdx <= 0 || stageIdx === 3) && Math.random() < 0.5 ? wordPick(board, words, { map: maps[0], allow: ['IMAGE', 'STORY'], fig: fig }) : null; }
                 }
             });
             stepText = stepEl ? new FlapText(stepEl, { duration: 420 }) : null;
@@ -559,6 +605,7 @@
             if (s === stageIdx) return;
             var prev = stageIdx;
             stageIdx = s;
+            board.quiet(2200);
             var rows = board.rows, colsN = board.cols;
             var head = [(fig.offsetTop + fig.offsetHeight * .25) / (board.cssH / rows), (fig.offsetLeft + fig.offsetWidth * .5) / (board.cssW / colsN)];
             var origin = s === 1 ? head : s === 2 ? [0, colsN] : s === 3 ? [rows, 0] : [rows, colsN];
@@ -610,7 +657,7 @@
                 var CROP = {
                     art1: { zoom: 1.85, fx: 0.42, fy: 0.08 },
                     art2: { zoom: 1.7, fx: 0.86, fy: 0.3 },
-                    art3: { zoom: 1.5, fx: 0.92, fy: 0.55 },
+                    art3: { zoom: 1.5, fx: 0.25, fy: 0.3 },
                     art4: { zoom: 1.45, fx: 0.72, fy: 0.12 }
                 };
                 ['art1', 'art2', 'art3', 'art4'].forEach(function (k) {
@@ -826,7 +873,10 @@
             var turn = reduce ? 0.5 : sstep(0.05, 0.55, p);
             rig.style.setProperty('--explode', e.toFixed(4));
             tilt.x = lerp(tilt.x, reduce ? 0 : tilt.tx, 0.06); tilt.y = lerp(tilt.y, reduce ? 0 : tilt.ty, 0.06);
-            var ry = lerp(0, 34, turn) + tilt.x * (4 + 8 * e), rx = lerp(0, 12, turn) - tilt.y * (3 + 6 * e), rz = lerp(0, 2, turn), rs = lerp(1, 0.8, e);
+            // phones get a gentler turn and shallower depth so the stack stays on screen
+            var narrow = vw < 700, zk = narrow ? 0.5 : 1;
+            var ry = lerp(0, narrow ? 18 : 34, turn) + tilt.x * (4 + 8 * e), rx = lerp(0, narrow ? 8 : 12, turn) - tilt.y * (3 + 6 * e), rz = lerp(0, 2, turn), rs = lerp(1, narrow ? 0.8 : 0.8, e);
+            rig.style.setProperty('--zk', zk);
             rig.style.setProperty('--ry', ry.toFixed(2) + 'deg');
             rig.style.setProperty('--rx', rx.toFixed(2) + 'deg');
             rig.style.setProperty('--rz', rz.toFixed(2) + 'deg');
@@ -839,8 +889,9 @@
             if (geo.w) {
                 var R = Math.PI / 180;
                 for (var i = 0; i < labels.length; i++) {
-                    var a = ANCHOR[i], pt = project(a[0] * geo.w, a[1] * geo.h, LZ[i] * e, rx * R, ry * R, rz * R, rs);
-                    labels[i].style.transform = 'translate3d(' + (pt[0] + geo.dx - geo.lw[i] + 3).toFixed(1) + 'px,' + (pt[1] + geo.dy - geo.lh / 2).toFixed(1) + 'px,0)';
+                    var a = ANCHOR[i], pt = project(a[0] * geo.w, a[1] * geo.h, LZ[i] * e * zk, rx * R, ry * R, rz * R, rs);
+                    var lx = Math.max(6, pt[0] + geo.dx - geo.lw[i] + 3);     // never off the left edge
+                    labels[i].style.transform = 'translate3d(' + lx.toFixed(1) + 'px,' + (pt[1] + geo.dy - geo.lh / 2).toFixed(1) + 'px,0)';
                     labels[i].style.opacity = sstep(0.35, 0.8, e).toFixed(3);
                 }
             }
@@ -873,12 +924,45 @@
             cols: 24, rows: 2, gap: 3, radius: 2, split: 1, duration: 520, glyph: 0.64,
             face: function () { return card(' '); }
         });
+        var blank = {};
+        // in dark mode, tiles that would only show the artwork's bare paper
+        // glow; those become cards instead
+        function homeFace(t) { return blank[t.i] && currentTheme() === 'dark' ? filler(t, 4, true) : F.img('art2'); }
         var sboard = new FlapBoard(scanvas, {
             cols: 4, aspect: 1.3, gap: 3, radius: 2, split: 1, duration: 600,
-            face: function () { return F.img('art2'); },
-            alt: function (t) { return filler(t, 4); }
+            face: homeFace,
+            alt: function (t) { return t.home && t.home.k === 'img' ? filler(t, 4) : F.img('art2'); }
         });
         sboard.on('layout', function () { register(fig, sboard, 'art2', box); });
+        function paleTiles() {
+            var out = {};
+            try {
+                var src = sboard.sources.art2;
+                if (!src || !src.map) return out;
+                var k = 0.25, W = Math.max(1, Math.round(sboard.dw * k)), H = Math.max(1, Math.round(sboard.dh * k));
+                var c = doc.createElement('canvas'); c.width = W; c.height = H;
+                var x = c.getContext('2d'), m = src.map, im = src.img;
+                x.drawImage(im, m.ox * k, m.oy * k, (im.naturalWidth || im.width) * m.sc * k, (im.naturalHeight || im.height) * m.sc * k);
+                var d = x.getImageData(0, 0, W, H).data;
+                sboard.tiles.forEach(function (t) {
+                    var x0 = Math.floor(t.x * k), y0 = Math.floor(t.y * k), x1 = Math.ceil((t.x + t.w) * k), y1 = Math.ceil((t.y + t.h) * k);
+                    var n = 0, pale = 0;
+                    for (var yy = y0; yy < y1 && yy < H; yy++) {
+                        for (var xx = x0; xx < x1 && xx < W; xx++) {
+                            var o = (yy * W + xx) * 4, hi = Math.max(d[o], d[o + 1], d[o + 2]), lo = Math.min(d[o], d[o + 1], d[o + 2]);
+                            n++; if (hi > 165 && hi - lo < 42) pale++;
+                        }
+                    }
+                    if (n && pale / n > 0.75) out[t.i] = true;
+                });
+            } catch (e) { }
+            return out;
+        }
+        function retheme() {
+            if (!sboard.dw) return;
+            blank = paleTiles();
+            sboard.setAll(homeFace);
+        }
 
         function cols() { return clamp(Math.round(canvas.clientWidth / (vw < 700 ? 30 : 52)), 11, 30); }
         function show() {
@@ -890,12 +974,13 @@
             if (wide) {
                 [m[0], m[1]].forEach(function (line, r) { for (var k = 0; k < line.length; k++) map[r + ':' + (k + 1)] = line[k]; });
             } else {
-                var a = layout(m[0], { c0: 0, c1: board.cols, r0: 0, r1: 2 });
-                var b = layout(m[1], { c0: 0, c1: board.cols, r0: 2, r1: 4 });
+                var a = layout(m[0], { c0: 1, c1: board.cols, r0: 0, r1: 2, align: 'left' });
+                var b = layout(m[1], { c0: 1, c1: board.cols, r0: 2, r1: 4, align: 'left' });
                 Object.assign(map, a, b);
             }
+            var gateRow = wide ? 0 : board.rows - 1;
             board.wave(function (t) {
-                if (wide && t.r === 0 && t.c >= board.cols - 7) {
+                if (t.r === gateRow && t.c >= board.cols - 7) {
                     return F.char('GATE 26'[t.c - (board.cols - 7)], C.gold, '#161512');
                 }
                 return card(map[t.r + ':' + t.c] || ' ');
@@ -903,12 +988,13 @@
         }
         function init(img, figImg) {
             board.o.cols = cols();
-            board.o.rows = board.o.cols >= 20 ? 2 : 4;
+            board.o.rows = board.o.cols >= 20 ? 2 : 5;
             board.resize();
             boards.push(board);
             shadowFor(fig, figImg);
             sboard.setSource('art2', plate(img, figImg, box, 'art2'), { fx: 0.5, fy: 0.45 });
             sboard.resize();
+            retheme();
             stage.classList.add('is-ready');
             var lift = 0, target = 0;
             stage.addEventListener('pointerenter', function () { target = 1; });
@@ -925,7 +1011,7 @@
                 if (es[0].isIntersecting) { show(); if (!reduce) timer = setInterval(show, 5200); }
             }, { threshold: 0.2 }).observe(canvas);
         }
-        return { init: init, board: board, sboard: sboard, resize: function () { board.o.cols = cols(); board.o.rows = board.o.cols >= 20 ? 2 : 4; } };
+        return { init: init, board: board, sboard: sboard, retheme: retheme, resize: function () { board.o.cols = cols(); board.o.rows = board.o.cols >= 20 ? 2 : 5; } };
     })();
 
     /* ======================================================================
@@ -1027,8 +1113,7 @@
         canvas.addEventListener('click', function (e) {
             var r = canvas.getBoundingClientRect();
             var row = clamp(Math.floor((e.clientY - r.top) / (r.height / board.rows)), 0, board.rows - 1);
-            var btn = $$('.step button')[row];
-            if (btn && btn.getAttribute('aria-expanded') !== 'true') btn.click();
+            openStep(row, true);
         });
         return {
             init: function () { board.resize(); boards.push(board); },
@@ -1127,26 +1212,40 @@
         lastY = y;
     });
 
-    /* process accordion */
-    $$('.step button').forEach(function (btn) {
+    /* process accordion: one step open at a time, kept in step with the
+       timetable board */
+    var stepBtns = $$('.step button');
+    function setStep(btn, open) {
         var panel = doc.getElementById(btn.getAttribute('aria-controls'));
-        var weekEl = $('.step__week', panel), week = weekEl ? new FlapText(weekEl, { duration: 420, stagger: 30, glyphs: '0123456789' }) : null;
-        var weekText = week ? week.text : '';
+        if ((btn.getAttribute('aria-expanded') === 'true') === open) return;
+        btn.setAttribute('aria-expanded', String(open));
+        if (open) {
+            panel.hidden = false;
+            var h = panel.scrollHeight;
+            if (!reduce) panel.animate([{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }], { duration: 520, easing: 'cubic-bezier(.16,1,.3,1)' });
+        } else if (reduce) {
+            panel.hidden = true;
+        } else {
+            var a = panel.animate([{ height: panel.scrollHeight + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 380, easing: 'cubic-bezier(.65,0,.35,1)' });
+            a.onfinish = function () { if (btn.getAttribute('aria-expanded') !== 'true') panel.hidden = true; };
+        }
+    }
+    function openStep(i, reveal) {
+        stepBtns.forEach(function (b, j) { if (j !== i) setStep(b, false); });
+        setStep(stepBtns[i], true);
+        timetable.set(i);
+        if (reveal) {
+            // bring the opened step into view if it landed below the fold
+            setTimeout(function () {
+                var li = stepBtns[i].closest('.step'), r = li.getBoundingClientRect();
+                if (r.bottom > vh - 40 || r.top < 80) scrollTo(win.scrollY + r.top - 120);
+            }, reduce ? 0 : 400);
+        }
+    }
+    stepBtns.forEach(function (btn, i) {
         btn.addEventListener('click', function () {
-            var open = btn.getAttribute('aria-expanded') === 'true';
-            btn.setAttribute('aria-expanded', String(!open));
-            if (!open) {
-                timetable.set($$('.step button').indexOf(btn));
-                panel.hidden = false;
-                if (week) { week.set(weekText.replace(/\d/g, '0'), { stagger: 0, duration: 1 }); setTimeout(function () { week.set(weekText, { cycle: 2, stagger: 60 }); }, 120); }
-                var h = panel.scrollHeight;
-                if (!reduce) panel.animate([{ height: '0px', opacity: 0 }, { height: h + 'px', opacity: 1 }], { duration: 520, easing: 'cubic-bezier(.16,1,.3,1)' });
-            } else if (reduce) {
-                panel.hidden = true;
-            } else {
-                var a = panel.animate([{ height: panel.scrollHeight + 'px', opacity: 1 }, { height: '0px', opacity: 0 }], { duration: 380, easing: 'cubic-bezier(.65,0,.35,1)' });
-                a.onfinish = function () { panel.hidden = true; };
-            }
+            if (btn.getAttribute('aria-expanded') === 'true') setStep(btn, false);
+            else openStep(i, false);
         });
     });
 
@@ -1338,7 +1437,7 @@
     function rebuildPlates() {
         if (loaded.art1) { hero.board.setSource('art1', plate(loaded.art1[0], loaded.art1[1], ART.art1.figure, 'art1'), { fx: 0.5, fy: 0.42 }); }
         if (loaded.art3) { wall.board.setSource('art3', plate(loaded.art3[3] || loaded.art3[0], loaded.art3[1], ART.art3.figure, 'art3'), { fx: 0.12, fy: 0.16 }); }
-        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); }
+        if (loaded.art2) { contact.sboard.setSource('art2', plate(loaded.art2[0], loaded.art2[1], ART.art2.figure, 'art2'), { fx: 0.5, fy: 0.45 }); contact.retheme(); }
         boards.forEach(function (b) { b.cache.clear(); b.draw(); });
     }
 
@@ -1376,11 +1475,16 @@
     ];
     var done = 0, shown = 0, t0 = performance.now();
     jobs.forEach(function (j) { j.then(function () { done++; }); });
-    var MIN = reduce ? 0 : 1500;
+    // second visit in a session: no count, just the flaps clearing away
+    var seen = false;
+    try { seen = sessionStorage.getItem('bm-seen') === '1'; sessionStorage.setItem('bm-seen', '1'); } catch (e) { }
+    if (seen) loader.classList.add('is-quick');
+    var MIN = reduce || seen ? 0 : 1100;
     var countTimer = setInterval(function () {
         var real = done / jobs.length;
-        var timeP = clamp((performance.now() - t0) / MIN, 0, 1);
-        var target = Math.floor(Math.min(real, timeP) * 100);
+        var timeP = MIN ? clamp((performance.now() - t0) / MIN, 0, 1) : 1;
+        // count from the first frame; the last stretch waits for the hero's art
+        var target = Math.floor(Math.min(timeP, 0.6 + 0.4 * real) * 100);
         if (target > shown) { shown = Math.min(100, shown + Math.max(1, Math.round((target - shown) * 0.5))); counter.set(pad(shown, 3), { stagger: 40, order: 'rtl' }); }
         if (shown >= 100) clearInterval(countTimer);
     }, 110);
@@ -1400,11 +1504,11 @@
         // below the fold: the wall and contact boards stream in behind the loader
         Promise.all([art('art3'), figureOf('art3')]).then(function (r) { loaded.art3 = r; wall.init(r[0], r[1]); });
         Promise.all([art('art2'), figureOf('art2')]).then(function (r) { loaded.art2 = r; contact.init(r[0], r[1]); });
-        var wait = Math.max(0, MIN + 250 - (performance.now() - t0));
+        var wait = Math.max(0, MIN + (MIN ? 150 : 0) - (performance.now() - t0));
         setTimeout(function () {
             clearInterval(countTimer);
-            counter.set('100', { stagger: 60, order: 'rtl' });
-            setTimeout(reveal, reduce ? 0 : 420);
+            if (!seen) counter.set('100', { stagger: 60, order: 'rtl' });
+            setTimeout(reveal, reduce || seen ? 0 : 260);
         }, wait);
     });
 
@@ -1412,8 +1516,8 @@
         if (reduce) { loader.remove(); hero.intro(0); return; }
         loader.classList.add('is-out');
         lb.wave(function () { return F.clear(); }, { origin: [lb.rows, 0], speed: 46, jitter: 70 });
-        titles.forEach(function (t, i) { t.intro({ delay: 420 + i * 240, stagger: 48, cycle: 0, duration: 620 }); });
-        hero.intro(520);
+        titles.forEach(function (t, i) { t.intro({ delay: 220 + i * 200, stagger: 44, cycle: 0, duration: 600 }); });
+        hero.intro(200);
         lb.on('rest', function () { loader.remove(); lb.destroy(); });
         loader.classList.add('is-done');
     }
